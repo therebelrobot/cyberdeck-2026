@@ -1,0 +1,24 @@
+# Build artifacts
+firmware/boards/*/tinygo/build/
+firmware/boards/*/arduino/build/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Compiled binaries
+*.elf
+*.hex
+*.bin
+*.uf2
+
+# Atopile
+circuits/.ato/
+circuits/build/
+.playwright-cli/

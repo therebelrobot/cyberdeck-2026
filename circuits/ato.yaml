@@ -1,0 +1,19 @@
+# Atopile Project Configuration
+# See: https://docs.atopile.io/atopile-0.14.x/project-structure
+
+# Project name (customize this)
+name: my-circuit
+
+# Atopile version requirement
+ato-version: ^0.14.0
+
+# Build configurations
+builds:
+  default:
+    # Entry point module
+    entry: elec/src/main.ato:Main
+    # Uncomment to specify a different layout
+    # layout: layouts/default/default.kicad_pcb
+
+# Dependencies (add with `ato add <package>`)
+dependencies: []

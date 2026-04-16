@@ -1,0 +1,27 @@
+# Main circuit module
+# See: https://docs.atopile.io/atopile-0.14.x/language
+
+# Import components from packages (install with `ato add`)
+# from "package-name/component.ato" import ComponentName
+
+module Main:
+    """
+    Main circuit module.
+
+    Customize this module to define your circuit.
+    Use `ato add <package>` to add component packages.
+    """
+
+    # Define signals/interfaces
+    # signal vcc
+    # signal gnd
+
+    # Instantiate components
+    # resistor = new Resistor
+    # resistor.value = 10kohm +/- 5%
+
+    # Make connections with ~
+    # vcc ~ resistor.p1
+    # resistor.p2 ~ gnd
+
+    pass  # Remove this line when adding content
