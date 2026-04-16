@@ -1,0 +1,608 @@
+/*!*****************************************************************************************************************************************************************************************************************************************************************!*\
+  !*** css ./node_modules/next/dist/build/webpack/loaders/css-loader/src/index.js??ruleSet[1].rules[14].oneOf[12].use[2]!./node_modules/next/dist/build/webpack/loaders/postcss-loader/src/index.js??ruleSet[1].rules[14].oneOf[12].use[3]!./src/app/globals.css ***!
+  \*****************************************************************************************************************************************************************************************************************************************************************/
+/* RAPTOR OS - Jurassic Park-themed Kiosk UI */
+/* Color Palette per docs/KIOSK.md */
+/* 
+ * Background: #0A0A0A
+ * Primary amber: #FFA500
+ * Accent green: #39FF14
+ * Muted overlay: #1A1A1A
+ * Danger/alert: #FF4500
+ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* JP Color Palette */
+  --bg-primary: #0A0A0A;
+  --amber: #FFA500;
+  --accent-green: #39FF14;
+  --muted-overlay: #1A1A1A;
+  --danger: #FF4500;
+  
+  /* Derived colors */
+  --bg-secondary: #12121a;
+  --bg-card: #1a1a24;
+  --text-primary: #FFA500;
+  --text-secondary: #888899;
+  --text-muted: #666666;
+  --border: #2a2a3a;
+  --success: #39FF14;
+  --warning: #FFA500;
+  --error: #FF4500;
+  --accent-dim: #FFA50040;
+}
+
+html,
+body {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Fixed 640x480 resolution per docs/KIOSK.md */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 480px;
+  width: 640px;
+  margin: 0 auto;
+  padding: 0;
+  background: var(--bg-primary);
+}
+
+.app-header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 12px;
+}
+
+.app-header h1 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--amber);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.app-main {
+  flex: 1 1;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* =============================================================================
+ * KIOSK DASHBOARD LAYOUT
+ * =============================================================================
+ * Per docs/KIOSK.md:
+ * - StatusBar (top, always visible)
+ * - Mesh Comms Panel (left, primary) + Notes Panel (right)
+ * - QuickActions Strip (bottom)
+ */
+
+.kiosk-dashboard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+/* =============================================================================
+ * STATUS BAR
+ * =============================================================================
+ */
+
+.status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.75rem;
+}
+
+.status-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.raptor-logo {
+  color: var(--amber);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+
+.status-indicators .indicator {
+  color: var(--amber);
+  letter-spacing: 0.05em;
+}
+
+.status-indicators .indicator.pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.status-bar-right {
+  display: flex;
+  gap: 12px;
+}
+
+.status-item {
+  color: var(--text-secondary);
+}
+
+/* =============================================================================
+ * MAIN CONTENT (Two Panel Layout)
+ * =============================================================================
+ */
+
+.main-content {
+  display: flex;
+  flex: 1 1;
+  overflow: hidden;
+}
+
+/* =============================================================================
+ * PANELS (Shared Styles)
+ * =============================================================================
+ */
+
+.panel {
+  flex: 1 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.panel.focused {
+  border-color: var(--amber);
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--muted-overlay);
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--amber);
+  letter-spacing: 0.1em;
+}
+
+.panel-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.panel-tabs .tab {
+  padding: 4px 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+
+.panel-tabs .tab.active {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: var(--bg-primary);
+}
+
+.panel-content {
+  flex: 1 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+}
+
+.panel-footer {
+  padding: 6px 12px;
+  background: var(--muted-overlay);
+  border-top: 1px solid var(--border);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+/* =============================================================================
+ * MESH COMMS PANEL
+ * =============================================================================
+ */
+
+.mesh-panel {
+  border-right: none;
+}
+
+.mesh-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mesh-message {
+  padding: 6px 8px;
+  background: var(--muted-overlay);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  border: 2px solid transparent;
+}
+
+.mesh-message.selected {
+  border-color: var(--amber);
+}
+
+.mesh-message.selected .msg-sender {
+  color: var(--amber);
+}
+
+.mesh-message .msg-time {
+  color: var(--text-muted);
+  margin-right: 6px;
+}
+
+.mesh-message .msg-sender {
+  color: var(--accent-green);
+  font-weight: 600;
+}
+
+.mesh-message .msg-channel {
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.mesh-message .msg-text {
+  margin-top: 4px;
+  color: var(--text-primary);
+}
+
+.mesh-compose textarea {
+  width: 100%;
+  height: 80px;
+  padding: 8px;
+  background: var(--muted-overlay);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--amber);
+  font-family: inherit;
+  font-size: 0.875rem;
+  resize: none;
+}
+
+.mesh-compose textarea:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
+.compose-hint,
+.editor-hint {
+  margin-top: 6px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.mesh-nodes {
+  color: var(--text-secondary);
+}
+
+/* =============================================================================
+ * NOTES PANEL
+ * =============================================================================
+ */
+
+.notes-panel {
+  border-left: none;
+}
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.note-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: var(--muted-overlay);
+  border-radius: 4px;
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+
+.note-item.selected {
+  border-color: var(--amber);
+}
+
+.note-item.selected .note-title {
+  color: var(--amber);
+}
+
+
+.note-title {
+  font-size: 0.75rem;
+  color: var(--text-primary);
+}
+
+.note-modified {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.notes-editor textarea {
+  width: 100%;
+  height: 120px;
+  padding: 8px;
+  background: var(--muted-overlay);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--amber);
+  font-family: inherit;
+  font-size: 0.875rem;
+  resize: none;
+}
+
+.notes-editor textarea:focus {
+  outline: none;
+  border-color: var(--amber);
+}
+
+.sync-status {
+  color: var(--text-muted);
+}
+
+/* =============================================================================
+ * QUICK ACTIONS STRIP
+ * =============================================================================
+ */
+
+.quick-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+}
+
+.quick-actions.focused {
+  border-color: var(--amber);
+  background: var(--bg-secondary);
+}
+
+.action-btn {
+  flex: 1 1;
+  padding: 8px 4px;
+  background: var(--muted-overlay);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.action-btn.selected {
+  border-color: var(--amber);
+  background: var(--accent-dim);
+  color: var(--amber);
+}
+
+
+.action-btn:active {
+  transform: scale(0.98);
+}
+
+.compose-btn {
+  width: 100%;
+}
+
+/* =============================================================================
+ * EMPTY STATE
+ * =============================================================================
+ */
+
+.empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+/* =============================================================================
+ * ANIMATIONS
+ * =============================================================================
+ */
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* =============================================================================
+ * LEGACY STYLES (for backward compatibility)
+ * =============================================================================
+ */
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, auto);
+  grid-gap: 12px;
+  gap: 12px;
+  flex: 1 1;
+}
+
+.status-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 100px;
+}
+
+.status-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+.status-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.status-value.time {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-size: 2rem;
+  color: var(--amber);
+}
+
+.status-value.uptime {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  font-size: 1.25rem;
+}
+
+.status-sub {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+.battery-card {
+  position: relative;
+}
+
+.battery-visual {
+  width: 80%;
+  max-width: 120px;
+  height: 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.battery-level {
+  height: 100%;
+  background: linear-gradient(90deg, var(--success), var(--amber));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.charging-indicator {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  font-size: 0.875rem;
+  animation: pulse 1s infinite;
+}
+
+.network-icons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.net-icon {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  transition: all 0.3s ease;
+}
+
+.net-icon.active {
+  background: var(--accent-dim);
+  color: var(--amber);
+}
+
+.meshtastic-nodes,
+.message-count {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--amber);
+}
+
+.action-bar {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+/* =============================================================================
+ * SCROLLBAR STYLING
+ * =============================================================================
+ */
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
+
+/* =============================================================================
+ * SELECTION
+ * =============================================================================
+ */
+
+::selection {
+  background: var(--accent-dim);
+  color: var(--amber);
+}
+

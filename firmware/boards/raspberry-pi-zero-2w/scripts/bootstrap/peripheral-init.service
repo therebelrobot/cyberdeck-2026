@@ -1,0 +1,12 @@
+[Unit]
+Description=Peripheral Initialization
+After=basic.target
+Before=graphical.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/init-peripherals.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

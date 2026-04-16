@@ -1,0 +1,6 @@
+{
+  "/page": "app/page.js",
+  "/api/notes/route": "app/api/notes/route.js",
+  "/api/status/route": "app/api/status/route.js",
+  "/api/mesh/messages/route": "app/api/mesh/messages/route.js"
+}

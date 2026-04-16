@@ -1,0 +1,17 @@
+[Unit]
+Description=Cyberdeck Kiosk - Next.js + Chromium
+After=network.target peripheral-init.service
+Wants=peripheral-init.service
+
+[Service]
+Type=simple
+User=pi
+Restart=always
+RestartSec=5
+ExecStartPre=/bin/sleep 10
+ExecStart=/usr/local/bin/start-kiosk.sh
+Environment=HOME=/home/pi
+Environment=KIOSK_DIR=/home/pi/cyberdeck-2026/firmware/boards/raspberry-pi-zero-2w/kiosk
+
+[Install]
+WantedBy=multi-user.target
