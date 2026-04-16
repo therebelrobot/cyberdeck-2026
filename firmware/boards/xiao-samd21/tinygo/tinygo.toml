@@ -1,0 +1,6 @@
+board: seeed-xiao
+
+target: samd21
+
+build:
+  default-target: samd21

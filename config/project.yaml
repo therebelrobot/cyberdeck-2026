@@ -9,70 +9,27 @@
 # =============================================================================
 
 project:
-  name: my-project                    # Replace with your project name
-  description: A microcontroller project built from the template
-  version: 0.1.0
+  name: cyberdeck-2026
+  description: Battery-powered portable Linux cyberdeck in a thrifted enclosure. Solarpunk-oriented, off-grid-capable personal computing device with cellular and LoRa/Meshtastic networking.
 
-# =============================================================================
-# Board Definitions
-# =============================================================================
-#
-# Each board entry defines:
-#   - id:         Unique identifier for this board instance (lowercase-kebab-case)
-#   - board:      Board type matching a directory name in firmware/boards/
-#   - language:   Firmware language — "tinygo" or "arduino"
-#   - role:       Human-readable description of what this board does
-#   - connection: (optional) How this board connects to other boards
-#
-# Board directory names use lowercase-kebab-case. See the full list in
-# docs/ARCHITECTURE.md under "Firmware Directory Naming".
-# =============================================================================
+boards:
+  - id: pi-zero-2w
+    board: raspberry-pi-zero-2w
+    language: typescript
+    role: Primary SBC running Linux. Hosts display, receives HID input via USB, interfaces with Meshtastic node via @meshtastic/js over USB serial, and manages LTE network interface.
 
-boards: []
-  # -------------------------------------------------------------------------
-  # Example: Single-board project
-  # -------------------------------------------------------------------------
-  # - id: main
-  #   board: xiao-esp32s3
-  #   language: tinygo
-  #   role: Main controller
-  #
-  # -------------------------------------------------------------------------
-  # Example: Multi-board project with I2C and UART connections
-  # -------------------------------------------------------------------------
-  # - id: controller
-  #   board: xiao-esp32s3
-  #   language: tinygo
-  #   role: Central controller and WiFi gateway
-  #
-  # - id: left-arm
-  #   board: xiao-rp2040
-  #   language: tinygo
-  #   role: Left arm servo controller
-  #   connection:
-  #     protocol: i2c
-  #     address: 0x10
-  #
-  # - id: right-arm
-  #   board: xiao-rp2040
-  #   language: tinygo
-  #   role: Right arm servo controller
-  #   connection:
-  #     protocol: i2c
-  #     address: 0x11
-  #
-  # - id: sensor-hub
-  #   board: arduino-uno
-  #   language: arduino
-  #   role: Environmental sensor aggregator
-  #   connection:
-  #     protocol: uart
-  #     baud: 115200
-  #
-  # -------------------------------------------------------------------------
-  # Connection protocol options:
-  #   - i2c:  requires "address" (hex, e.g., 0x10)
-  #   - spi:  requires "cs_pin" (chip select pin)
-  #   - uart: requires "baud" (baud rate, e.g., 9600, 115200)
-  #   - wifi: requires "port" (TCP/UDP port number)
-  # -------------------------------------------------------------------------
+  - id: hid-bridge
+    board: xiao-samd21
+    language: tinygo
+    role: USB HID bridge for ANO rotary encoder and directional input. Presents as keyboard/mouse HID device to Pi over USB.
+    connection:
+      protocol: usb
+      upstream: ch334f-hub
+
+  - id: meshtastic-node
+    board: xiao-esp32s3
+    language: meshtastic
+    role: Dedicated Meshtastic LoRa node using WIO-SX1262 wing. Communicates with Pi over USB serial. Handles all LoRa mesh networking.
+    connection:
+      protocol: usb-serial
+      upstream: ch334f-hub
