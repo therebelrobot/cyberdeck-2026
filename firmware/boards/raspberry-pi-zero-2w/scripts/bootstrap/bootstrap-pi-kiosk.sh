@@ -48,6 +48,10 @@ NODE_VERSION="v22.14.0"
 WAVESHARE_DTBO_URL="https://files.waveshare.com/wiki/3.5inch-DPI-LCD/3.5inch-DPI-LCD_dtbo.tar.gz"
 WAVESHARE_DTBO_DIR="/boot/overlays"
 WAVESHARE_OVERLAY="waveshare-35dpi-3b-4b"
+# WARNING: GPIO 18 is also used by the DPI display for R5 data line.
+# If the DPI overlay claims GPIO 18, PWM backlight control will not work.
+# The Waveshare DPI display may handle backlight internally via the overlay.
+# Set to -1 to disable manual PWM backlight config when using DPI mode.
 WAVESHARE_BACKLIGHT_GPIO=18
 
 # =============================================================================
@@ -236,6 +240,27 @@ main() {
     fi
     
     # -------------------------------------------------------------------------
+    log_step "Step 0: Ensure SSH is enabled"
+    # -------------------------------------------------------------------------
+    
+    # SSH is disabled by default on recent Raspberry Pi OS.
+    # Enable it FIRST so the Pi remains reachable if display config fails.
+    if systemctl is-enabled ssh &>/dev/null; then
+        log "  - SSH already enabled"
+    else
+        log "  - Enabling SSH..."
+        systemctl enable ssh 2>/dev/null || true
+        systemctl start ssh 2>/dev/null || true
+        log "  - SSH enabled and started"
+    fi
+    
+    # Note: Hardware I2C (dtparam=i2c_arm=on) is NOT needed here.
+    # The Waveshare DPI overlay claims GPIO2/GPIO3 for display data,
+    # making hardware I2C bus 1 unavailable. The overlay creates a
+    # bit-banged I2C bus on GPIO10/GPIO11 instead. The init-peripherals
+    # script auto-detects the correct bus at runtime.
+    
+    # -------------------------------------------------------------------------
     log_step "Step 1: Configure boot splash settings"
     # -------------------------------------------------------------------------
     
@@ -281,7 +306,8 @@ main() {
         fi
     else
         log "  - WARNING: $BOOT_CMDLINE not found"
-
+    fi
+    
     # -------------------------------------------------------------------------
     log_step "Step 2: Configure Waveshare 3.5inch DPI LCD display"
     # -------------------------------------------------------------------------
@@ -301,8 +327,6 @@ main() {
     
     # Configure backlight PWM control
     configure_backlight_pwm || log "  - Note: Backlight PWM optional, display works without it"
-    
-    fi
     
     # -------------------------------------------------------------------------
     log_step "Step 3: Install Plymouth splash configuration"
@@ -442,18 +466,24 @@ xset s noblank
     log "  - Services enabled"
     
     # -------------------------------------------------------------------------
-    log_step "Step 8: Enable PiSugar server (if installed)"
+    log_step "Step 8: PiSugar 3 — power-only mode"
     # -------------------------------------------------------------------------
+    # The PiSugar 3 pogo pins hard-wire I2C to GPIO2/GPIO3, which are
+    # claimed by the Waveshare DPI display overlay. I2C communication
+    # is unavailable. The PiSugar still provides:
+    #   - 5V power delivery (pogo pins)
+    #   - USB-C charging passthrough
+    #   - Physical power button
+    #
+    # PiSugar server is NOT enabled because it requires I2C access.
+    # To restore: solder SDA/SCL to GPIO10/GPIO11, then enable pisugar-server.
     
-    if [[ -f "/usr/local/bin/pisugar-server" ]] || [[ -f "/usr/bin/pisugar-server" ]]; then
-        systemctl enable pisugar-server 2>/dev/null || true
-        systemctl enable pisugar-offical 2>/dev/null || true
-        log "  - PiSugar server enabled"
-    elif command -v pisugar-server &>/dev/null; then
-        systemctl enable pisugar-server 2>/dev/null || true
-        log "  - PiSugar server enabled"
+    if [[ -f "/usr/local/bin/pisugar-server" ]] || [[ -f "/usr/bin/pisugar-server" ]] || command -v pisugar-server &>/dev/null; then
+        log "  - PiSugar server found but NOT enabled (I2C unavailable in DPI mode)"
+        log "  - To enable: wire PiSugar SDA/SCL to GPIO10/GPIO11, then run:"
+        log "    sudo systemctl enable pisugar-server"
     else
-        log "  - PiSugar server not detected, skipping"
+        log "  - PiSugar server not installed (not needed in power-only mode)"
     fi
     
     # Mark as configured
@@ -719,257 +749,83 @@ configure_touch_calibration() {
 }
 
 configure_backlight_pwm() {
-    log "Configuring backlight PWM control on GPIO ${WAVESHARE_BACKLIGHT_GPIO}..."
+    log "Configuring backlight control..."
     
-    # Install wiringPi for PWM control if needed
-    if ! command -v gpio &>/dev/null; then
-        log "  - Installing wiringPi..."
-        local tmp_dir=$(mktemp -d)
-        cd "$tmp_dir"
-        curl -L --fail --silent --show-error -o wiringpi.deb https://project-downloads.drogon.net/wiringpi-latest.deb 2>/dev/null || true
-        if [[ -f wiringpi.deb ]]; then
-            dpkg -i wiringpi.deb 2>/dev/null || true
-        fi
-        rm -rf "$tmp_dir"
-        cd - >/dev/null
-    fi
+    # The Waveshare DPI overlay registers GPIO 18 as a gpio-backlight device
+    # in the kernel device tree (compatible = "gpio-backlight", default-on).
+    # This provides on/off control via /sys/class/backlight/, NOT PWM.
+    #
+    # Do NOT use wiringPi or direct GPIO PWM on GPIO 18 — the kernel
+    # gpio-backlight driver owns this pin. Fighting it causes undefined
+    # behavior and potential display corruption.
     
-    # Check if gpio command works
-    if command -v gpio &>/dev/null; then
-        # Configure GPIO 18 as PWM mode
-        gpio -g mode ${WAVESHARE_BACKLIGHT_GPIO} pwm 2>/dev/null || true
-        gpio pwmc 100 2>/dev/null || true
+    # Verify the backlight sysfs interface is available
+    local bl_path="/sys/class/backlight"
+    
+    if [[ -d "$bl_path" ]]; then
+        local bl_device
+        bl_device=$(ls "$bl_path" 2>/dev/null | head -1)
         
-        # Set backlight to maximum (brightest)
-        gpio -g pwm ${WAVESHARE_BACKLIGHT_GPIO} 0 2>/dev/null || true
-        
-        log "  - Backlight PWM configured on GPIO ${WAVESHARE_BACKLIGHT_GPIO}"
-        log "  - Backlight set to maximum brightness"
-        
-        # Add to init-peripherals script for persistence
-        if [[ -f "$INIT_PERIPHERALS" ]] && ! grep -q "gpio.*pwm.*backlight" "$INIT_PERIPHERALS" 2>/dev/null; then
-            cat >> "$INIT_PERIPHERALS" << 'BACKLIGHT_EOF'
-
-# Configure Waveshare LCD backlight PWM
-if command -v gpio &>/dev/null; then
-    gpio -g mode ${WAVESHARE_BACKLIGHT_GPIO} pwm 2>/dev/null || true
-    gpio pwmc 100 2>/dev/null || true
-    gpio -g pwm ${WAVESHARE_BACKLIGHT_GPIO} 0 2>/dev/null || true
-fi
-BACKLIGHT_EOF
-            log "  - Added backlight PWM config to $INIT_PERIPHERALS"
+        if [[ -n "$bl_device" ]]; then
+            log "  - Backlight device found: $bl_path/$bl_device"
+            
+            # Ensure backlight is on
+            if [[ -f "$bl_path/$bl_device/brightness" ]]; then
+                local max_brightness
+                max_brightness=$(cat "$bl_path/$bl_device/max_brightness" 2>/dev/null || echo "1")
+                echo "$max_brightness" > "$bl_path/$bl_device/brightness" 2>/dev/null || true
+                log "  - Backlight set to maximum ($max_brightness)"
+            fi
+        else
+            log "  - No backlight device in sysfs yet (will be available after reboot with DPI overlay)"
         fi
-        
-        return 0
     else
-        log "  - WARNING: gpio command not available, skipping backlight PWM config"
-        return 1
+        log "  - Backlight sysfs not available (will be created by DPI overlay after reboot)"
     fi
+    
+    log "  - Backlight control: use /sys/class/backlight/ at runtime"
+    log "  - Note: gpio-backlight provides on/off only, not PWM dimming"
+    
+    return 0
 }
 
 
 create_init_peripherals_script() {
     log "  - Creating $INIT_PERIPHERALS"
     
-    cat > "$INIT_PERIPHERALS" << 'SCRIPT_EOF'
+    # Copy the standalone init-peripherals.sh from the repo instead of
+    # maintaining a duplicate inline copy. If the repo isn't available
+    # (e.g. running via curl), fall back to a minimal version.
+    local repo_script="/home/pi/cyberdeck-2026/firmware/boards/raspberry-pi-zero-2w/scripts/bootstrap/init-peripherals.sh"
+    
+    if [[ -f "$repo_script" ]]; then
+        cp "$repo_script" "$INIT_PERIPHERALS"
+        log "  - Copied init-peripherals.sh from repo"
+    else
+        log "  - Repo script not found, creating minimal init-peripherals.sh"
+        cat > "$INIT_PERIPHERALS" << 'SCRIPT_EOF'
 #!/bin/bash
-#
-# init-peripherals.sh - Peripheral Initialization Script
-#
-# This script initializes all peripherals connected to the Raspberry Pi
-# including I2C devices, USB peripherals, and any custom hardware.
-#
-# Exit codes:
-#   0 - All peripherals initialized successfully
-#   1 - Partial initialization (some devices not found)
-#   2 - Critical error
-#
-
+# Minimal init-peripherals.sh — see repo for full version
 set -e
-
 LOGFILE="/var/log/peripheral-init.log"
-I2C_BUS="${I2C_BUS:-1}"
-
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOGFILE" 2>/dev/null
-}
-
-wait_for_i2c() {
-    local device_addr="$1"
-    local max_attempts="${2:-30}"
-    local attempt=0
-    
-    log "Waiting for I2C device at address 0x${device_addr}..."
-    
-    while [[ $attempt -lt $max_attempts ]]; do
-        if i2cdetect -y "$I2C_BUS" 0x"${device_addr}" 2>/dev/null | grep -q "$device_addr"; then
-            log "  Found device at 0x${device_addr}"
-            return 0
-        fi
-        sleep 0.5
-        attempt=$((attempt + 1))
-    done
-    
-    log "  WARNING: Device at 0x${device_addr} not found after ${max_attempts} attempts"
-    return 1
-}
-
-# =============================================================================
-# PiSugar 3 Battery Management (I2C 0x57)
-# =============================================================================
-
-init_pisugar() {
-    log "Initializing PiSugar 3 battery management..."
-    
-    if ! command -v i2cdetect &>/dev/null; then
-        log "  Installing i2c-tools..."
-        apt-get install -y -qq i2c-tools
-    fi
-    
-    if wait_for_i2c "57" 10; then
-        log "  PiSugar 3 detected"
-    else
-        log "  PiSugar 3 not detected on I2C"
-    fi
-}
-
-# =============================================================================
-# CardKB QWERTY Keyboard (I2C 0x5F)
-# =============================================================================
-
-init_cardkb() {
-    log "Initializing CardKB QWERTY Keyboard..."
-    
-    if wait_for_i2c "5F" 10; then
-        log "  CardKB detected"
-    else
-        log "  CardKB not detected on I2C"
-    fi
-}
-
-# =============================================================================
-# ANO Rotary Encoder (I2C via seesaw)
-# =============================================================================
-
-init_rotary_encoder() {
-    log "Initializing ANO Rotary Encoder..."
-    
-    local seesaw_addrs=("3A" "49" "4B")
-    
-    for addr in "${seesaw_addrs[@]}"; do
-        if wait_for_i2c "$addr" 5; then
-            log "  Rotary encoder detected at 0x${addr}"
-            return 0
-        fi
-    done
-    
-    log "  Rotary encoder not detected"
-    return 1
-}
-
-# =============================================================================
-# Display Touch Controller
-# =============================================================================
-
-init_display_touch() {
-    log "Initializing display touch controller..."
-    
-    local touch_addrs=("38" "39" "3A" "48")
-    
-    for addr in "${touch_addrs[@]}"; do
-        if wait_for_i2c "$addr" 5; then
-            log "  Touch controller detected at 0x${addr}"
-            return 0
-        fi
-    done
-    
-    log "  Touch controller not detected (may be SPI)"
-    return 1
-}
-
-# =============================================================================
-# USB Hub (CH334F)
-# =============================================================================
-
-init_usb_hub() {
-    log "Initializing USB hub..."
-    
-    if lsusb | grep -q "1a40"; then
-        log "  USB hub (1a40) detected"
-    else
-        log "  USB hub not detected"
-    fi
-}
-
-# =============================================================================
-# LTE Modem
-# =============================================================================
-
-init_lte_modem() {
-    log "Initializing LTE modem..."
-    
-    if ls /dev/ttyUSB* &>/dev/null; then
-        log "  LTE modem detected"
-    else
-        log "  LTE modem not detected"
-    fi
-}
-
-# =============================================================================
-# LoRa Radio (via XIAO ESP32-S3)
-# =============================================================================
-
-init_lora_radio() {
-    log "Initializing LoRa radio (XIAO ESP32-S3)..."
-    
-    if ls /dev/serial0 &>/dev/null || ls /dev/ttyAMA0 &>/dev/null; then
-        log "  LoRa radio serial port detected"
-    else
-        log "  LoRa radio not detected on serial"
-    fi
-}
-
-# =============================================================================
-# MAIN INITIALIZATION
-# =============================================================================
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOGFILE" 2>/dev/null; }
 
 main() {
-    mkdir -p "$(dirname "$LOGFILE")"
     touch "$LOGFILE" 2>/dev/null || true
-    
-    log "=========================================="
-    log "Peripheral Initialization Starting"
-    log "=========================================="
-    
-    # Enable I2C
-    if ! lsmod | grep -q i2c_dev; then
-        modprobe i2c-dev
-    fi
-    
-    local failed=0
-    
-    # Initialize each peripheral
-    init_pisugar || failed=$((failed + 1))
-    init_cardkb || failed=$((failed + 1))
-    init_rotary_encoder || failed=$((failed + 1))
-    init_display_touch || failed=$((failed + 1))
-    init_usb_hub || failed=$((failed + 1))
-    init_lte_modem || failed=$((failed + 1))
-    init_lora_radio || failed=$((failed + 1))
-    
-    log "=========================================="
-    if [[ $failed -eq 0 ]]; then
-        log "All peripherals initialized successfully"
-    else
-        log "Initialization complete with $failed device(s) not found"
-    fi
-    log "=========================================="
-    
-    return $failed
+    log "Peripheral Initialization Starting (minimal)"
+    modprobe i2c-dev 2>/dev/null || true
+    modprobe i2c-gpio 2>/dev/null || true
+    sleep 1
+    # List detected I2C buses
+    for bus in $(ls /dev/i2c-* 2>/dev/null | sed 's|/dev/i2c-||'); do
+        log "  Scanning I2C bus $bus..."
+        i2cdetect -y "$bus" 2>/dev/null | tee -a "$LOGFILE" || true
+    done
+    log "Peripheral Initialization Complete"
 }
-
 main "$@"
 SCRIPT_EOF
+    fi
 
     chmod +x "$INIT_PERIPHERALS"
     chown root:root "$INIT_PERIPHERALS"

@@ -16,54 +16,77 @@ Document physical wiring connections between boards and components here.
 | GND    | GND           | GND          |
 -->
 
-### Raspberry Pi Zero 2W → Waveshare 3.5" DPI Display (DPI666)
+### Raspberry Pi Zero 2W → Waveshare 3.5" DPI Display (DPI18)
 
-The Waveshare 3.5" DPI display consumes the **FULL 40-pin GPIO header** via DPI666 interface.
+The Waveshare 3.5" DPI display uses the **DPI18 (18-bit)** interface, claiming 22 GPIOs
+for display data, clock, and sync signals. Verified by decompiling `waveshare-35dpi-3b-4b.dtbo`.
+
+> **Note**: This is DPI18 (6-6-6 color), NOT DPI24. GPIOs 10, 11, 18, 19, 26, 27 are
+> **NOT claimed** by the display and remain available for other uses.
 
 | DPI Signal | GPIO Pin | Function |
 |------------|----------|----------|
-| R0 | GPIO2 | Data bit 0 |
-| R1 | GPIO3 | Data bit 1 |
-| R2 | GPIO4 | Data bit 2 |
-| R3 | GPIO14 | Data bit 3 |
-| R4 | GPIO15 | Data bit 4 |
-| R5 | GPIO18 | Data bit 5 |
-| R6 | GPIO17 | Data bit 6 |
-| R7 | GPIO27 | Data bit 7 |
-| G0 | GPIO22 | Data bit 0 |
-| G1 | GPIO23 | Data bit 1 |
-| G2 | GPIO24 | Data bit 2 |
-| G3 | GPIO10 | Data bit 3 |
-| G4 | GPIO9 | Data bit 4 |
-| G5 | GPIO25 | Data bit 5 |
-| G6 | GPIO11 | Data bit 6 |
-| G7 | GPIO8 | Data bit 7 |
-| B0 | GPIO21 | Data bit 0 |
-| B1 | GPIO26 | Data bit 1 |
-| B2 | GPIO20 | Data bit 2 |
-| B3 | GPIO19 | Data bit 3 |
-| B4 | GPIO16 | Data bit 4 |
-| B5 | GPIO13 | Data bit 5 |
-| B6 | GPIO12 | Data bit 6 |
-| B7 | GPIO6 | Data bit 7 |
 | DOTCLK | GPIO0 | Pixel clock |
-| DE | GPIO7 | Data enable |
 | VSYNC | GPIO1 | Vertical sync |
+| R0 | GPIO2 | Red data bit 0 (⚠️ conflicts with I2C1 SDA) |
+| R1 | GPIO3 | Red data bit 1 (⚠️ conflicts with I2C1 SCL) |
+| R2 | GPIO4 | Red data bit 2 |
 | HSYNC | GPIO5 | Horizontal sync |
+| DE/R3 | GPIO6 | Data enable / Red data bit 3 |
+| R4 | GPIO7 | Red data bit 4 |
+| G0 | GPIO8 | Green data bit 0 |
+| G1 | GPIO9 | Green data bit 1 |
+| G2 | GPIO12 | Green data bit 2 |
+| G3 | GPIO13 | Green data bit 3 |
+| G4 | GPIO14 | Green data bit 4 |
+| G5 | GPIO15 | Green data bit 5 |
+| B0 | GPIO16 | Blue data bit 0 |
+| B1 | GPIO17 | Blue data bit 1 |
+| B2 | GPIO20 | Blue data bit 2 |
+| B3 | GPIO21 | Blue data bit 3 |
+| B4 | GPIO22 | Blue data bit 4 |
+| B5 | GPIO23 | Blue data bit 5 |
+| B6 | GPIO24 | Blue data bit 6 |
+| B7 | GPIO25 | Blue data bit 7 |
 | 5V | Pin 2, 4 | Power (input to display) |
 | 3.3V | Pin 1, 17 | Logic power |
 | GND | Pin 6, 9, 14, 20, 25, 30, 34, 39 | Ground |
 
-### Waveshare DPI Display Touch Controller (I2C)
+### GPIOs NOT claimed by DPI display (available for peripherals)
 
-| Signal | Display Pin | GPIO Pin (Pi) |
-|--------|-------------|---------------|
-| SDA | TBD | GPIO2 (SDA) |
-| SCL | TBD | GPIO3 (SCL) |
-| 3.3V | TBD | Pin 1 or 17 |
-| GND | TBD | Ground |
+| GPIO | Available For | Used By |
+|------|---------------|---------|
+| GPIO10 | Bit-banged I2C SDA | DPI overlay creates `i2c-gpio` bus |
+| GPIO11 | Bit-banged I2C SCL | DPI overlay creates `i2c-gpio` bus |
+| GPIO18 | Backlight control | DPI overlay registers `gpio-backlight` (on/off) |
+| GPIO19 | General purpose | Unused |
+| GPIO26 | General purpose | Unused |
+| GPIO27 | General purpose | Unused |
 
-> **⚠️ VERIFY_REQUIRED**: Touch controller I2C address needs verification from Waveshare wiki.
+### Waveshare DPI Display — Backlight Control
+
+| Signal | GPIO Pin | Driver | Notes |
+|--------|----------|--------|-------|
+| Backlight | GPIO18 | `gpio-backlight` (kernel) | On/off only, NOT PWM. Controlled via `/sys/class/backlight/` |
+
+> The DPI overlay registers GPIO18 as a kernel `gpio-backlight` device with `default-on`.
+> Do NOT use wiringPi or direct GPIO manipulation — use the sysfs interface instead.
+
+### Waveshare DPI Display Touch Controller (I2C via bit-banged bus)
+
+The DPI overlay claims GPIO2/GPIO3 (hardware I2C bus 1), so the touch controller
+and all other I2C devices use a **bit-banged I2C bus on GPIO10/GPIO11** created by
+the overlay. This bus appears as `/dev/i2c-N` (typically i2c-3 or higher).
+
+| Signal | GPIO Pin (Pi) | Notes |
+|--------|---------------|-------|
+| SDA | GPIO10 | Bit-banged I2C (created by DPI overlay) |
+| SCL | GPIO11 | Bit-banged I2C (created by DPI overlay) |
+| 3.3V | Pin 1 or 17 | Logic power |
+| GND | Ground | |
+
+> **Touch controller**: GT911 capacitive, I2C address `0x5D` (default) or `0x14` (alternate).
+> Detected automatically by `init-peripherals.sh` which scans all available I2C buses.
 
 ## Sensor Connections
 
@@ -98,9 +121,10 @@ The Waveshare 3.5" DPI display consumes the **FULL 40-pin GPIO header** via DPI6
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ PiSugar 3 Plus (5000mAh LiPo)                               │
-│ ├── I2C: 0x57 (battery monitor)                              │
-│ └── I2C: 0x68 (RTC/timestamp)                               │
+│ PiSugar 3 Plus (5000mAh LiPo) — POWER-ONLY MODE             │
+│ ├── I2C: 0x57 (battery monitor) — UNAVAILABLE (GPIO2/3      │
+│ │        conflict with DPI display)                          │
+│ └── I2C: 0x68 (RTC/timestamp)  — UNAVAILABLE (same reason)  │
 │                                                              │
 │     └── Pogo pins ──────────────────────────────────────────►│ Raspberry Pi Zero 2W
 │                                                                │
@@ -123,7 +147,7 @@ The Waveshare 3.5" DPI display consumes the **FULL 40-pin GPIO header** via DPI6
 
 | Component | Voltage | Current Draw | Power Source |
 |-----------|---------|-------------|--------------|
-| Raspberry Pi Zero 2W | 5V | ~250mA | PiSugar 3 Plus (pogo) |
+| Raspberry Pi Zero 2W | 5V | ~250mA | PiSugar 3 Plus (pogo, power-only) |
 | Waveshare DPI Display | 5V | ~200mA | Pi GPIO (via Pi) |
 | XIAO SAMD21 | 3.3V/5V | ~50mA | USB Hub (Port 1) |
 | XIAO ESP32-S3 | 3.3V/5V | ~150mA | USB Hub (Port 2) |
@@ -133,13 +157,25 @@ The Waveshare 3.5" DPI display consumes the **FULL 40-pin GPIO header** via DPI6
 
 ## I2C Bus Devices
 
-### Raspberry Pi Zero 2W I2C Bus
+### Raspberry Pi Zero 2W I2C Bus (bit-banged, GPIO10/GPIO11)
 
-| Device | I2C Address | Notes |
-|--------|------------|-------|
-| PiSugar 3 Plus | `0x57` | Battery monitoring |
-| PiSugar 3 Plus | `0x68` | RTC/timestamp |
-| Waveshare DPI Touch | `VERIFY_REQUIRED` | Needs verification from Waveshare wiki |
+> **Important**: Hardware I2C bus 1 (GPIO2/GPIO3) is unavailable when the DPI display
+> overlay is active. All I2C devices share the bit-banged bus created by the overlay
+> on GPIO10 (SDA) / GPIO11 (SCL). The bus number varies (typically `/dev/i2c-3` or higher).
+> Use `init-peripherals.sh` auto-detection or scan with `ls /dev/i2c-*`.
+
+| Device | I2C Address | Status | Notes |
+|--------|------------|--------|-------|
+| PiSugar 3 Plus | `0x57` | **UNAVAILABLE** | Pogo pins hard-wired to GPIO2/3 (claimed by DPI). Power-only mode. |
+| PiSugar 3 Plus | `0x68` | **UNAVAILABLE** | RTC — same GPIO2/3 conflict |
+| Waveshare DPI Touch | `0x5D` | Available | GT911 capacitive touch (default addr) |
+| Waveshare DPI Touch | `0x14` | Available | GT911 capacitive touch (alternate addr) |
+
+> **PiSugar Power-Only Mode**: The PiSugar 3 pogo pins hard-wire I2C to GPIO2/GPIO3,
+> which are claimed by the DPI display. The PiSugar still provides 5V power, USB-C
+> charging, and the physical power button — but battery level, charging status, and
+> RTC are unavailable. To restore I2C: solder jumper wires from PiSugar SDA/SCL pads
+> to GPIO10 (pin 19) / GPIO11 (pin 23).
 
 ### XIAO SAMD21 I2C Bus
 

@@ -1,11 +1,32 @@
 /**
- * PiSugarService
+ * PiSugarService — POWER-ONLY MODE
  * 
- * Per docs/KIOSK.md:
- * - Polls PiSugar 3 Plus via I2C (address 0x57) every 30 seconds
- * - Maintains in-memory ring buffer of last 30 minutes of readings
- * - Exposes getStatus() (current) and getHistory() (sparkline data)
- * - Controls backlight PWM for screensaver dim/wake
+ * The PiSugar 3 Plus is connected via pogo pins for power delivery only.
+ * I2C communication (0x57 battery, 0x68 RTC) is unavailable because the
+ * Waveshare DPI display overlay claims GPIO2/GPIO3 for display data lines,
+ * and the PiSugar's pogo pins hard-wire I2C to those same GPIOs.
+ * 
+ * What works:
+ * - 5V power delivery to the Pi
+ * - USB-C charging passthrough
+ * - Physical power button
+ * 
+ * What does NOT work (without hardware mod):
+ * - Battery level / voltage / current readings
+ * - Charging status detection
+ * - RTC (0x68)
+ * 
+ * To restore full I2C functionality:
+ * Solder jumper wires from PiSugar SDA/SCL pads to GPIO10 (pin 19) /
+ * GPIO11 (pin 23) — the bit-banged I2C bus created by the DPI overlay.
+ * Then set powerOnly = false below.
+ * 
+ * Backlight Notes:
+ * - The DPI overlay registers GPIO18 as a kernel gpio-backlight device
+ *   (on/off only, NOT PWM). Control via /sys/class/backlight/ sysfs.
+ * - For screensaver: write "0" to brightness to turn off, write
+ *   max_brightness value to turn on.
+ * - Do NOT use wiringPi or direct GPIO PWM on GPIO18.
  */
 
 export interface PiSugarStatus {
@@ -14,6 +35,7 @@ export interface PiSugarStatus {
   current: number;
   runtime: string;
   charging: boolean;
+  powerOnly: boolean;
 }
 
 export interface PiSugarReading {
@@ -25,12 +47,25 @@ class PiSugarService {
   private history: PiSugarReading[] = [];
   private readonly maxHistoryLength = 60; // 30 min at 30s intervals
   private readonly pollInterval = 30000; // 30 seconds
-  private intervalId: NodeJS.Timeout | null = null;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
 
   /**
-   * Start polling PiSugar for battery status
+   * Power-only mode flag. When true, I2C polling is disabled and
+   * getStatus() returns unknown values. Set to false after wiring
+   * PiSugar I2C to GPIO10/GPIO11.
+   */
+  private readonly powerOnly = true;
+
+  /**
+   * Start polling PiSugar for battery status.
+   * No-op in power-only mode.
    */
   startPolling(): void {
+    if (this.powerOnly) {
+      console.log('[PiSugar] Power-only mode — I2C polling disabled');
+      return;
+    }
+
     if (this.intervalId) return;
 
     this.intervalId = setInterval(() => {
@@ -55,47 +90,63 @@ class PiSugarService {
    * Poll PiSugar for current status
    */
   private async poll(): Promise<void> {
-    // Placeholder - in production, use i2c-bus to read from 0x57
+    if (this.powerOnly) return;
+
+    // TODO: When I2C is wired to GPIO10/11, use i2c-bus to read from 0x57
+    // on the bit-banged bus (auto-detect bus number from /dev/i2c-*)
     const reading: PiSugarReading = {
       timestamp: Date.now(),
-      level: 75, // Placeholder
+      level: -1,
     };
 
     this.history.push(reading);
 
-    // Trim history to max length
     if (this.history.length > this.maxHistoryLength) {
       this.history = this.history.slice(-this.maxHistoryLength);
     }
   }
 
   /**
-   * Get current status
+   * Get current status.
+   * Returns unknown values (-1) in power-only mode.
    */
   getStatus(): PiSugarStatus {
-    // Placeholder - return mock data
     return {
-      batteryLevel: 75,
-      voltage: 4.2,
-      current: 0.5,
-      runtime: '~6.2hrs',
+      batteryLevel: -1,
+      voltage: -1,
+      current: -1,
+      runtime: 'unknown',
       charging: false,
+      powerOnly: this.powerOnly,
     };
   }
 
   /**
-   * Get history for sparkline display
+   * Get history for sparkline display.
+   * Empty in power-only mode.
    */
   getHistory(): PiSugarReading[] {
     return [...this.history];
   }
 
   /**
-   * Set backlight level (0-100)
+   * Set backlight on/off.
+   * 
+   * The DPI overlay registers GPIO18 as a gpio-backlight device (on/off only).
+   * Control via sysfs: /sys/class/backlight/<device>/brightness
+   *   - Write "0" to turn off
+   *   - Write max_brightness value to turn on
+   * 
+   * Note: This is binary on/off, NOT dimmable PWM. Any level > 0 = on.
    */
   async setBacklight(level: number): Promise<void> {
-    // Placeholder - in production, write PWM value via I2C
-    console.log(`Backlight set to ${level}%`);
+    // Placeholder - in production:
+    // import { readFileSync, writeFileSync, readdirSync } from 'fs';
+    // const blPath = '/sys/class/backlight';
+    // const device = readdirSync(blPath)[0];
+    // const brightness = level > 0 ? readFileSync(`${blPath}/${device}/max_brightness`, 'utf8').trim() : '0';
+    // writeFileSync(`${blPath}/${device}/brightness`, brightness);
+    console.log(`[PiSugar] Backlight ${level > 0 ? 'on' : 'off'} (requested: ${level}%)`);
   }
 }
 

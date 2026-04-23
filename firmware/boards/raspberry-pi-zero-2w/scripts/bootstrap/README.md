@@ -54,7 +54,13 @@ The kiosk uses a **local Next.js server** with Chromium connecting to `localhost
 
 ## Implementation Order
 
-The bootstrap script performs configuration in 7 sequential steps:
+The bootstrap script performs configuration in 9 sequential steps:
+
+### Step 0: SSH & I2C Enablement
+- Enables and starts SSH (disabled by default on recent Pi OS)
+- Ensures the Pi remains reachable even if display config fails
+- Documents that hardware I2C is unavailable (DPI overlay uses GPIO2/3)
+- The DPI overlay creates a bit-banged I2C bus on GPIO10/GPIO11
 
 ### Step 1: Boot Splash Configuration
 - Adds `disable_splash=1` to `/boot/firmware/config.txt` to disable rainbow splash
@@ -65,33 +71,45 @@ The bootstrap script performs configuration in 7 sequential steps:
   - `splash` - Enables Plymouth splash screen
   - `vt.global_cursor_default=0` - Hides cursor during boot
 
-### Step 2: Plymouth Splash Installation
+### Step 2: Waveshare 3.5" DPI LCD Configuration
+- Installs Waveshare device tree overlay files (`.dtbo`)
+- Configures display in `/boot/firmware/config.txt` (DPI18 mode)
+- Sets display rotation (default: 0 degrees)
+- Configures touch panel calibration (GT911 controller)
+- Configures backlight via sysfs (`/sys/class/backlight/`)
+
+### Step 3: Plymouth Splash Installation
 - Installs Plymouth splash screen system
 - Sets spinfinity theme (fallback graceful if unavailable)
 
-### Step 3: LightDM Auto-Login
+### Step 4: LightDM Auto-Login
 - Configures `/etc/lightdm/lightdm.conf` for automatic login as `pi` user
 - Enables boot directly to desktop without login prompt
+- Disables display power saving per Waveshare user guide
 
-### Step 4: Labwc Autostart Configuration
+### Step 5: Labwc Autostart Configuration
 - Creates `~/.config/labwc/autostart`
 - Disables:
   - DPMS (display power management)
   - Screen saver
   - Screen blanking
 
-### Step 5: Node.js and Kiosk App Setup
+### Step 6: Node.js and Kiosk App Setup
 - Installs NVM and Node.js v22.14.0 if not present
 - Installs Next.js dependencies
 - Builds the Next.js kiosk app
 
-### Step 6: Systemd Services
+### Step 7: Systemd Services
+- Copies `init-peripherals.sh` from repo (with I2C bus auto-detection)
 - Installs and enables `peripheral-init.service` (runs before graphical target)
 - Installs and enables `kiosk.service` (starts Next.js + Chromium)
 - Installs `start-kiosk.sh` launcher script
 
-### Step 7: PiSugar Server
-- Enables PiSugar server if detected
+### Step 8: PiSugar 3 — Power-Only Mode
+- PiSugar server is **not enabled** (I2C unavailable due to DPI GPIO conflict)
+- Power delivery, USB-C charging, and power button still work via pogo pins
+- Battery level, charging status, and RTC are unavailable
+- To restore I2C: solder PiSugar SDA/SCL to GPIO10/GPIO11
 
 ## File Locations
 
@@ -212,9 +230,18 @@ sudo tail -f /var/log/peripheral-init.log
 - Try rebuilding: `cd /home/pi/cyberdeck-2026/firmware/boards/raspberry-pi-zero-2w/kiosk && npm run build`
 
 #### I2C devices not detected
-- Verify I2C is enabled: `ls /dev/i2c-*`
-- Scan I2C bus: `i2cdetect -y 1`
-- Check kernel module: `lsmod | grep i2c`
+- **Important**: Hardware I2C bus 1 (`/dev/i2c-1`) is unavailable when the DPI display overlay is active.
+  The overlay creates a bit-banged I2C bus on GPIO10/GPIO11 with a different device number.
+- List available buses: `ls /dev/i2c-*`
+- Scan ALL buses for devices:
+  ```bash
+  for bus in $(ls /dev/i2c-* | sed 's|/dev/i2c-||'); do
+    echo "=== Bus $bus ==="; i2cdetect -y "$bus"
+  done
+  ```
+- Expected devices: PiSugar at `0x57`/`0x68`, GT911 touch at `0x5D`
+- Check kernel modules: `lsmod | grep i2c`
+- The `init-peripherals.sh` script auto-detects the correct bus at startup
 
 ### Rollback
 

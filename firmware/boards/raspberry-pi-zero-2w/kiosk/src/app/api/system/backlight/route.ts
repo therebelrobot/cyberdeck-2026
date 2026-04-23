@@ -1,8 +1,11 @@
 /**
  * POST /api/system/backlight
  * 
- * Set backlight level (0-100) per docs/KIOSK.md:
- * - Interfaces with PiSugarService for PWM control
+ * Set backlight on/off per docs/KIOSK.md:
+ * - Controls via /sys/class/backlight/ sysfs interface
+ * - The Waveshare DPI overlay registers GPIO18 as a gpio-backlight
+ *   device (on/off only, NOT dimmable PWM)
+ * - Any level > 0 = on, level 0 = off
  * - Used for screensaver dim/wake
  */
 
