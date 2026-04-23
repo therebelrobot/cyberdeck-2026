@@ -34,6 +34,23 @@ NVM_DIR="/home/pi/.nvm"
 NODE_VERSION="v22.14.0"
 
 # =============================================================================
+# WAVESHARE 3.5" DPI LCD CONFIGURATION
+# =============================================================================
+# Configuration for Waveshare 3.5" DPI LCD (640x480, IPS display)
+# Hardware: https://www.waveshare.com/3.5inch-DPI-LCD.htm
+# User Guide: docs/waveshare_user_guide.pdf
+#
+# Pinout:
+#   - Display: DPI interface (uses 40-pin GPIO)
+#   - Touch: I2C (SDA=SDA, SCL=SCL)
+#   - Backlight: PWM on GPIO 18
+
+WAVESHARE_DTBO_URL="https://files.waveshare.com/wiki/3.5inch-DPI-LCD/3.5inch-DPI-LCD_dtbo.tar.gz"
+WAVESHARE_DTBO_DIR="/boot/overlays"
+WAVESHARE_OVERLAY="waveshare-35dpi-3b-4b"
+WAVESHARE_BACKLIGHT_GPIO=18
+
+# =============================================================================
 # UTILITY FUNCTIONS
 # =============================================================================
 
@@ -264,10 +281,31 @@ main() {
         fi
     else
         log "  - WARNING: $BOOT_CMDLINE not found"
+
+    # -------------------------------------------------------------------------
+    log_step "Step 2: Configure Waveshare 3.5inch DPI LCD display"
+    # -------------------------------------------------------------------------
+    
+    # Install Waveshare device tree overlays
+    install_waveshare_dtbo || log "  - Warning: DTBO installation had issues"
+    
+    # Configure display in config.txt
+    configure_waveshare_display
+    
+    # Configure display rotation (default: 0 degrees, can be changed later)
+    # Pass rotation as argument if you want different default: configure_display_rotation 90
+    configure_display_rotation 0
+    
+    # Configure touch panel calibration for the rotation
+    configure_touch_calibration 0
+    
+    # Configure backlight PWM control
+    configure_backlight_pwm || log "  - Note: Backlight PWM optional, display works without it"
+    
     fi
     
     # -------------------------------------------------------------------------
-    log_step "Step 2: Install Plymouth splash configuration"
+    log_step "Step 3: Install Plymouth splash configuration"
     # -------------------------------------------------------------------------
     
     if command -v plymouth-set-default-theme &>/dev/null; then
@@ -285,7 +323,7 @@ main() {
     fi
     
     # -------------------------------------------------------------------------
-    log_step "Step 3: Configure auto-login via LightDM"
+    log_step "Step 4: Configure auto-login via LightDM"
     # -------------------------------------------------------------------------
     
     if [[ -f "$LIGHTDM_CONF" ]]; then
@@ -307,13 +345,34 @@ main() {
                 echo "autologin-user-timeout=0" >> "$LIGHTDM_CONF"
             fi
             log "  - Configured LightDM autologin for user pi"
+
+        # Disable display power saving per Waveshare user guide
+        if grep -q "^xserver-command=" "$LIGHTDM_CONF" 2>/dev/null; then
+            # Update existing xserver-command to disable power saving
+            sed -i "s/^xserver-command=.*/xserver-command=X -s 0 -dpms/" "$LIGHTDM_CONF"
+            log "  - Updated xserver-command to disable power saving"
+        elif grep -q "^#xserver-command=X" "$LIGHTDM_CONF" 2>/dev/null; then
+            # Uncomment and modify existing xserver-command
+            sed -i "s/^#xserver-command=X$/xserver-command=X -s 0 -dpms/" "$LIGHTDM_CONF"
+            log "  - Enabled xserver-command to disable power saving"
+        else
+            # Add xserver-command to [SeatDefaults] section
+            if grep -q "^\[SeatDefaults\]$" "$LIGHTDM_CONF" 2>/dev/null; then
+                sed -i "/^\[SeatDefaults\]$/a xserver-command=X -s 0 -dpms" "$LIGHTDM_CONF"
+            else
+                echo "" >> "$LIGHTDM_CONF"
+                echo "[SeatDefaults]" >> "$LIGHTDM_CONF"
+                echo "xserver-command=X -s 0 -dpms" >> "$LIGHTDM_CONF"
+            fi
+            log "  - Added xserver-command to disable display power saving"
+        fi
         fi
     else
         log "  - WARNING: $LIGHTDM_CONF not found, skipping autologin"
     fi
     
     # -------------------------------------------------------------------------
-    log_step "Step 4: Create labwc autostart configuration"
+    log_step "Step 5: Create labwc autostart configuration"
     # -------------------------------------------------------------------------
     
     mkdir -p "$AUTOSTART_DIR"
@@ -349,7 +408,7 @@ xset s noblank
     fi
     
     # -------------------------------------------------------------------------
-    log_step "Step 5: Install Node.js and setup kiosk app"
+    log_step "Step 6: Install Node.js and setup kiosk app"
     # -------------------------------------------------------------------------
     
     if ! check_node_installed; then
@@ -361,7 +420,7 @@ xset s noblank
     setup_kiosk_app
     
     # -------------------------------------------------------------------------
-    log_step "Step 6: Install and configure systemd services"
+    log_step "Step 7: Install and configure systemd services"
     # -------------------------------------------------------------------------
     
     # Create init-peripherals.sh script
@@ -383,7 +442,7 @@ xset s noblank
     log "  - Services enabled"
     
     # -------------------------------------------------------------------------
-    log_step "Step 7: Enable PiSugar server (if installed)"
+    log_step "Step 8: Enable PiSugar server (if installed)"
     # -------------------------------------------------------------------------
     
     if [[ -f "/usr/local/bin/pisugar-server" ]] || [[ -f "/usr/bin/pisugar-server" ]]; then
@@ -417,6 +476,297 @@ xset s noblank
 # =============================================================================
 # SERVICE CREATION FUNCTIONS
 # =============================================================================
+
+# =============================================================================
+# WAVESHARE 3.5" DPI LCD CONFIGURATION FUNCTIONS
+# =============================================================================
+
+#raspi-config is not available on the Pi Zero 2 W in the same way
+#We use the dtoverlay approach
+
+install_waveshare_dtbo() {
+    log "Installing Waveshare 3.5inch DPI LCD device tree overlays..."
+    
+    # Create overlays directory if it doesn't exist
+    mkdir -p "$WAVESHARE_DTBO_DIR"
+    
+    # Local DTBO source directory (included in repo)
+    local local_dtbo_src="/home/pi/cyberdeck-2026/firmware/boards/raspberry-pi-zero-2w/3.5DPI-dtbo"
+    
+    # Check if already installed
+    local dtbo_file="${WAVESHARE_DTBO_DIR}/${WAVESHARE_OVERLAY}.dtbo"
+    if [[ -f "$dtbo_file" ]]; then
+        log "  - DTBO files already installed"
+    elif [[ -d "$local_dtbo_src" ]]; then
+        log "  - Copying DTBO files from local repo: $local_dtbo_src"
+        cp -u "$local_dtbo_src"/*.dtbo "$WAVESHARE_DTBO_DIR/" 2>/dev/null || cp "$local_dtbo_src"/*.dtbo "$WAVESHARE_DTBO_DIR/" 2>/dev/null
+        log "  - DTBO files copied to $WAVESHARE_DTBO_DIR"
+    else
+        log "  - WARNING: Local DTBO files not found at $local_dtbo_src"
+        log "  - Attempting to download from Waveshare..."
+        local tmp_dir=$(mktemp -d)
+        
+        if curl -L --fail --silent --show-error -o "${tmp_dir}/dtbo.tar.gz" "$WAVESHARE_DTBO_URL" 2>/dev/null; then
+            tar -xzf "${tmp_dir}/dtbo.tar.gz" -C "$WAVESHARE_DTBO_DIR" 2>/dev/null || true
+            log "  - DTBO files downloaded and installed"
+        else
+            log "  - ERROR: Failed to download DTBO files"
+        fi
+        
+        rm -rf "$tmp_dir"
+    fi
+    
+    # Verify at least one DTBO file exists
+    if ls "${WAVESHARE_DTBO_DIR}"/waveshare-35-dpi*.dtbo 2>/dev/null | head -1 | grep -q dtbo || \
+       ls "${WAVESHARE_DTBO_DIR}"/waveshare-35dpi*.dtbo 2>/dev/null | head -1 | grep -q dtbo; then
+        log "  - Waveshare DTBO files verified"
+        return 0
+    else
+        log "  - WARNING: No Waveshare DTBO files found in $WAVESHARE_DTBO_DIR"
+        return 1
+    fi
+}
+
+configure_waveshare_display() {
+    log "Configuring Waveshare 3.5inch DPI LCD in $BOOT_CONFIG..."
+    
+    backup_file "$BOOT_CONFIG"
+    
+    # Check if already configured (check for both old and new naming)
+    if grep -q "dtoverlay=waveshare-35dpi\|dtoverlay=waveshare-35-dpi" "$BOOT_CONFIG" 2>/dev/null; then
+        log "  - Waveshare display already configured"
+        return 0
+    fi
+    
+    # Detect Raspberry Pi model for appropriate overlay
+    local pi_model=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "Unknown")
+    local selected_overlay=""
+    
+    if echo "$pi_model" | grep -q "Pi 3"; then
+        selected_overlay="waveshare-35dpi-3b"
+        log "  - Detected Pi 3/3B/3B+, using ${selected_overlay} overlay"
+    elif echo "$pi_model" | grep -q "Pi 4"; then
+        selected_overlay="waveshare-35dpi-4b"
+        log "  - Detected Pi 4, using ${selected_overlay} overlay"
+    elif echo "$pi_model" | grep -q "Pi Zero 2"; then
+        # Pi Zero 2 W uses the same overlay as 3B+
+        selected_overlay="waveshare-35dpi-3b-4b"
+        log "  - Detected Pi Zero 2 W, using ${selected_overlay} overlay"
+    elif echo "$pi_model" | grep -q "Pi Zero"; then
+        selected_overlay="waveshare-35dpi-3b"
+        log "  - Detected Pi Zero, using ${selected_overlay} overlay"
+    else
+        # Default to 3b-4b overlay (most compatible)
+        selected_overlay="waveshare-35dpi-3b-4b"
+        log "  - Unknown Pi model ($pi_model), using default ${selected_overlay} overlay"
+    fi
+    
+    # Add configuration to config.txt
+    cat >> "$BOOT_CONFIG" << BOOT_EOF
+
+# =============================================================================
+# Waveshare 3.5inch DPI LCD Configuration
+# =============================================================================
+# Display: 640x480 IPS, 60Hz refresh
+# Touch: 5-point capacitive via I2C
+# Backlight: PWM control on GPIO 18
+# Reference: docs/waveshare_user_guide.pdf
+
+# Enable VC4 KMS driver (required for Bullseye+)
+dtoverlay=vc4-kms-v3d
+
+# DPI LCD overlay (640x480 @ 60Hz)
+dtoverlay=${selected_overlay}
+
+# Force LCD as default display
+display_default_lcd=1
+
+# Disable power saving to keep display on
+# (Also configured in lightdm.conf via xserver-command)
+BOOT_EOF
+    
+    log "  - Added Waveshare display configuration to $BOOT_CONFIG"
+    log "  - Using overlay: $selected_overlay"
+    
+    return 0
+}
+
+configure_display_rotation() {
+    local rotation="${1:-0}"
+    
+    log "Configuring display rotation: ${rotation} degrees..."
+    
+    # For KMS/FKMS drivers, we use xrandr for display rotation
+    # The autostart file already has xset commands, we add rotation here
+    
+    # Map rotation value to xrandr orientation
+    case "$rotation" in
+        0)
+            local xrandr_mode="normal"
+            ;;
+        90)
+            local xrandr_mode="right"
+            ;;
+        180)
+            local xrandr_mode="inverted"
+            ;;
+        270)
+            local xrandr_mode="left"
+            ;;
+        *)
+            log "  - Unknown rotation: $rotation, using 0 (normal)"
+            local xrandr_mode="normal"
+            rotation=0
+            ;;
+    esac
+    
+    # Add rotation command to autostart if not already present
+    if [[ -f "$AUTOSTART_FILE" ]]; then
+        if grep -q "xrandr -o" "$AUTOSTART_FILE" 2>/dev/null; then
+            # Update existing rotation
+            sed -i "s/xrandr -o .*/xrandr -o ${rotation}/" "$AUTOSTART_FILE"
+            log "  - Updated existing rotation in $AUTOSTART_FILE"
+        else
+            # Add rotation command
+            echo "" >> "$AUTOSTART_FILE"
+            echo "# Display rotation (0=normal, 1=90, 2=180, 3=270)" >> "$AUTOSTART_FILE"
+            echo "xrandr -o $rotation" >> "$AUTOSTART_FILE"
+            log "  - Added rotation command to $AUTOSTART_FILE"
+        fi
+    else
+        mkdir -p "$AUTOSTART_DIR"
+        echo "# Labwc autostart - kiosk configuration with rotation" > "$AUTOSTART_FILE"
+        echo "xrandr -o $rotation" >> "$AUTOSTART_FILE"
+        log "  - Created $AUTOSTART_FILE with rotation"
+    fi
+    
+    log "  - Display rotation set to ${rotation} degrees"
+}
+
+configure_touch_calibration() {
+    local rotation="${1:-0}"
+    
+    log "Configuring touch panel calibration for ${rotation} degree rotation..."
+    
+    # Install libinput if not present
+    if ! command -v xinput &>/dev/null; then
+        log "  - Installing xinput/libinput..."
+        apt-get install -y -qq xinput xserver-xorg-input-libinput 2>/dev/null || true
+    fi
+    
+    # Create X11 config directory if needed
+    local xorg_conf_dir="/etc/X11/xorg.conf.d"
+    mkdir -p "$xorg_conf_dir"
+    
+    # Matrix based on rotation:
+    # 0°:   "1 0 0 0 1 0 0 0 1"
+    # 90°:  "0 1 0 -1 0 1 0 0 1"
+    # 180°: "-1 0 1 0 -1 1 0 0 1"
+    # 270°: "0 -1 1 1 0 0 0 0 1"
+    local matrix
+    case "$rotation" in
+        0)
+            matrix="1 0 0 0 1 0 0 0 1"
+            ;;
+        90)
+            matrix="0 1 0 -1 0 1 0 0 1"
+            ;;
+        180)
+            matrix="-1 0 1 0 -1 1 0 0 1"
+            ;;
+        270)
+            matrix="0 -1 1 1 0 0 0 0 1"
+            ;;
+        *)
+            matrix="1 0 0 0 1 0 0 0 1"
+            rotation=0
+            ;;
+    esac
+    
+    # Create or update the touch calibration config
+    local touch_conf="${xorg_conf_dir}/40-libinput.conf"
+    
+    if [[ -f "$touch_conf" ]]; then
+        backup_file "$touch_conf"
+        
+        # Update existing calibration matrix
+        if grep -q 'Option "CalibrationMatrix"' "$touch_conf"; then
+            sed -i "s/Option \"CalibrationMatrix\" \"[^\"]*\"/Option \"CalibrationMatrix\" \"$matrix\"/" "$touch_conf"
+            log "  - Updated calibration matrix in $touch_conf"
+        else
+            # Add matrix after touchscreen section
+            sed -i '/Identifier "libinput pointer catchall"/,/EndSection/ {
+                /EndSection/i\        Option "CalibrationMatrix" "'"$matrix"'"
+            }' "$touch_conf"
+            log "  - Added calibration matrix to $touch_conf"
+        fi
+    else
+        # Copy from system directory
+        if [[ -f "/usr/share/X11/xorg.conf.d/40-libinput.conf" ]]; then
+            cp /usr/share/X11/xorg.conf.d/40-libinput.conf "$touch_conf"
+            
+            # Add calibration matrix
+            sed -i '/Identifier "libinput pointer catchall"/,/EndSection/ {
+                /EndSection/i\        Option "CalibrationMatrix" "'"$matrix"'"
+            }' "$touch_conf"
+            log "  - Created $touch_conf with calibration matrix"
+        else
+            log "  - WARNING: System 40-libinput.conf not found, touch calibration may be incomplete"
+        fi
+    fi
+    
+    log "  - Touch calibration configured for ${rotation} degree rotation"
+}
+
+configure_backlight_pwm() {
+    log "Configuring backlight PWM control on GPIO ${WAVESHARE_BACKLIGHT_GPIO}..."
+    
+    # Install wiringPi for PWM control if needed
+    if ! command -v gpio &>/dev/null; then
+        log "  - Installing wiringPi..."
+        local tmp_dir=$(mktemp -d)
+        cd "$tmp_dir"
+        curl -L --fail --silent --show-error -o wiringpi.deb https://project-downloads.drogon.net/wiringpi-latest.deb 2>/dev/null || true
+        if [[ -f wiringpi.deb ]]; then
+            dpkg -i wiringpi.deb 2>/dev/null || true
+        fi
+        rm -rf "$tmp_dir"
+        cd - >/dev/null
+    fi
+    
+    # Check if gpio command works
+    if command -v gpio &>/dev/null; then
+        # Configure GPIO 18 as PWM mode
+        gpio -g mode ${WAVESHARE_BACKLIGHT_GPIO} pwm 2>/dev/null || true
+        gpio pwmc 100 2>/dev/null || true
+        
+        # Set backlight to maximum (brightest)
+        gpio -g pwm ${WAVESHARE_BACKLIGHT_GPIO} 0 2>/dev/null || true
+        
+        log "  - Backlight PWM configured on GPIO ${WAVESHARE_BACKLIGHT_GPIO}"
+        log "  - Backlight set to maximum brightness"
+        
+        # Add to init-peripherals script for persistence
+        if [[ -f "$INIT_PERIPHERALS" ]] && ! grep -q "gpio.*pwm.*backlight" "$INIT_PERIPHERALS" 2>/dev/null; then
+            cat >> "$INIT_PERIPHERALS" << 'BACKLIGHT_EOF'
+
+# Configure Waveshare LCD backlight PWM
+if command -v gpio &>/dev/null; then
+    gpio -g mode ${WAVESHARE_BACKLIGHT_GPIO} pwm 2>/dev/null || true
+    gpio pwmc 100 2>/dev/null || true
+    gpio -g pwm ${WAVESHARE_BACKLIGHT_GPIO} 0 2>/dev/null || true
+fi
+BACKLIGHT_EOF
+            log "  - Added backlight PWM config to $INIT_PERIPHERALS"
+        fi
+        
+        return 0
+    else
+        log "  - WARNING: gpio command not available, skipping backlight PWM config"
+        return 1
+    fi
+}
+
 
 create_init_peripherals_script() {
     log "  - Creating $INIT_PERIPHERALS"
