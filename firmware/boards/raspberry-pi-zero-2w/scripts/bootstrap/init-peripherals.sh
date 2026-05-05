@@ -141,24 +141,26 @@ init_cardkb() {
 }
 
 # =============================================================================
-# ANO Rotary Encoder (I2C via seesaw)
+# ANO Rotary Encoder (USB HID via XIAO SAMD21)
 # =============================================================================
 
 init_rotary_encoder() {
-    log "Initializing ANO Rotary Encoder..."
+    log "Initializing ANO Rotary Encoder (USB HID via XIAO SAMD21)..."
     
-    # ANO encoder uses seesaw firmware, typically at 0x3A or 0x49
-    local seesaw_addrs=("3A" "49" "4B")
-    
-    for addr in "${seesaw_addrs[@]}"; do
-        if wait_for_i2c "$addr" 5; then
-            log "  Rotary encoder detected at 0x${addr}"
-            return 0
-        fi
-    done
-    
-    log "  Rotary encoder not detected"
-    return 1
+    # The ANO encoder is bridged by XIAO SAMD21 as a USB HID keyboard/mouse.
+    # It appears as a /dev/input/event* device, not I2C.
+    if ls /dev/input/event* &>/dev/null; then
+        log "  Input devices found:"
+        for dev in /dev/input/event*; do
+            local name
+            name=$(cat /sys/class/input/$(basename $dev)/device/name 2>/dev/null || echo "unknown")
+            log "    $dev: $name"
+        done
+        return 0
+    else
+        log "  No input devices found"
+        return 1
+    fi
 }
 
 # =============================================================================
@@ -219,14 +221,25 @@ init_lte_modem() {
 # =============================================================================
 
 init_lora_radio() {
-    log "Initializing LoRa radio (XIAO ESP32-S3)..."
+    log "Initializing LoRa radio (Meshtastic via XIAO ESP32-S3 USB serial)..."
     
-    # LoRa radio communicates via serial
-    if ls /dev/serial0 &>/dev/null || ls /dev/ttyAMA0 &>/dev/null; then
-        log "  LoRa radio serial port detected"
-    else
-        log "  LoRa radio not detected on serial"
+    # XIAO ESP32-S3 running Meshtastic connects via USB serial (CH334F hub)
+    # Appears as /dev/ttyACM* or /dev/ttyUSB*
+    local lora_port=""
+    
+    for port in /dev/ttyACM* /dev/ttyUSB*; do
+        if [[ -e "$port" ]]; then
+            lora_port="$port"
+            log "  LoRa radio (Meshtastic) detected at $port"
+            break
+        fi
+    done
+    
+    if [[ -z "$lora_port" ]]; then
+        log "  LoRa radio not detected (no /dev/ttyACM* or /dev/ttyUSB*)"
+        return 1
     fi
+    return 0
 }
 
 # =============================================================================

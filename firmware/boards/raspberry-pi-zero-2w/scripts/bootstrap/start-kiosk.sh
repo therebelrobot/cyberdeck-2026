@@ -17,7 +17,7 @@ KIOSK_DIR="${KIOSK_DIR:-/home/pi/cyberdeck-2026/firmware/boards/raspberry-pi-zer
 KIOSK_PORT="${KIOSK_PORT:-3000}"
 KIOSK_URL="http://localhost:${KIOSK_PORT}"
 NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-MAX_WAIT=30
+MAX_WAIT=60
 
 # Logging
 log() {

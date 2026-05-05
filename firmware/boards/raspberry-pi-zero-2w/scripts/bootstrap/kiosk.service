@@ -12,6 +12,9 @@ ExecStartPre=/bin/sleep 10
 ExecStart=/usr/local/bin/start-kiosk.sh
 Environment=HOME=/home/pi
 Environment=KIOSK_DIR=/home/pi/cyberdeck-2026/firmware/boards/raspberry-pi-zero-2w/kiosk
+Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-1
+Environment=XDG_RUNTIME_DIR=/run/user/1000
 
 [Install]
 WantedBy=multi-user.target

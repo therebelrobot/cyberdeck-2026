@@ -604,12 +604,15 @@ configure_waveshare_display() {
 
 # Enable VC4 KMS driver (required for Bullseye+)
 dtoverlay=vc4-kms-v3d
+dtoverlay=vc4-kms-DPI-35inch
 
 # DPI LCD overlay (640x480 @ 60Hz)
 dtoverlay=${selected_overlay}
 
 # Force LCD as default display
 display_default_lcd=1
+disable_splash=1
+
 
 # Disable power saving to keep display on
 # (Also configured in lightdm.conf via xserver-command)
