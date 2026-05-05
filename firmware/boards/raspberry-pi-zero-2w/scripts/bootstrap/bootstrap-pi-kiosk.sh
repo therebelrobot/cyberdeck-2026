@@ -558,70 +558,17 @@ install_waveshare_dtbo() {
 }
 
 configure_waveshare_display() {
-    log "Configuring Waveshare 3.5inch DPI LCD in $BOOT_CONFIG..."
+    local repo_config="/home/pi/cyberdeck-2026/firmware/boards/raspberry-pi-zero-2w/scripts/bootstrap/firmware-config.txt"
     
     backup_file "$BOOT_CONFIG"
     
-    # Check if already configured (check for both old and new naming)
-    if grep -q "dtoverlay=waveshare-35dpi\|dtoverlay=waveshare-35-dpi" "$BOOT_CONFIG" 2>/dev/null; then
-        log "  - Waveshare display already configured"
-        return 0
-    fi
-    
-    # Detect Raspberry Pi model for appropriate overlay
-    local pi_model=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "Unknown")
-    local selected_overlay=""
-    
-    if echo "$pi_model" | grep -q "Pi 3"; then
-        selected_overlay="waveshare-35dpi-3b"
-        log "  - Detected Pi 3/3B/3B+, using ${selected_overlay} overlay"
-    elif echo "$pi_model" | grep -q "Pi 4"; then
-        selected_overlay="waveshare-35dpi-4b"
-        log "  - Detected Pi 4, using ${selected_overlay} overlay"
-    elif echo "$pi_model" | grep -q "Pi Zero 2"; then
-        # Pi Zero 2 W uses the same overlay as 3B+
-        selected_overlay="waveshare-35dpi-3b-4b"
-        log "  - Detected Pi Zero 2 W, using ${selected_overlay} overlay"
-    elif echo "$pi_model" | grep -q "Pi Zero"; then
-        selected_overlay="waveshare-35dpi-3b"
-        log "  - Detected Pi Zero, using ${selected_overlay} overlay"
+    if [[ -f "$repo_config" ]]; then
+        cp "$repo_config" "$BOOT_CONFIG"
+        log "  - Copied working firmware-config.txt to $BOOT_CONFIG"
     else
-        # Default to 3b-4b overlay (most compatible)
-        selected_overlay="waveshare-35dpi-3b-4b"
-        log "  - Unknown Pi model ($pi_model), using default ${selected_overlay} overlay"
+        log "  - ERROR: firmware-config.txt not found at $repo_config"
+        exit 1
     fi
-    
-    # Add configuration to config.txt
-    cat >> "$BOOT_CONFIG" << BOOT_EOF
-
-# =============================================================================
-# Waveshare 3.5inch DPI LCD Configuration
-# =============================================================================
-# Display: 640x480 IPS, 60Hz refresh
-# Touch: 5-point capacitive via I2C
-# Backlight: PWM control on GPIO 18
-# Reference: docs/waveshare_user_guide.pdf
-
-# Enable VC4 KMS driver (required for Bullseye+)
-dtoverlay=vc4-kms-v3d
-dtoverlay=vc4-kms-DPI-35inch
-
-# DPI LCD overlay (640x480 @ 60Hz)
-dtoverlay=${selected_overlay}
-
-# Force LCD as default display
-display_default_lcd=1
-disable_splash=1
-
-
-# Disable power saving to keep display on
-# (Also configured in lightdm.conf via xserver-command)
-BOOT_EOF
-    
-    log "  - Added Waveshare display configuration to $BOOT_CONFIG"
-    log "  - Using overlay: $selected_overlay"
-    
-    return 0
 }
 
 configure_display_rotation() {

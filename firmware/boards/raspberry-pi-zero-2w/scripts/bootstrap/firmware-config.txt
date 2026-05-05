@@ -1,0 +1,115 @@
+# /boot/firmware/config.txt
+# Raspberry Pi Zero 2W — cyberdeck-2026
+#
+# WORKING CONFIGURATION for Waveshare 3.5" DPI LCD (640x480)
+#
+# Key gotchas documented here to save future pain:
+#
+#   1. dtparam=i2c_arm=on MUST be commented out.
+#      Hardware I2C claims GPIO2/GPIO3 before the DPI overlay loads,
+#      causing: "pin gpio2 already requested by i2c; cannot claim for dpi"
+#      and a blank display. Use the bit-banged I2C bus on GPIO10/GPIO11
+#      instead (created automatically by the DPI overlay).
+#
+#   2. disable_fw_kms_setup=1 MUST be commented out.
+#      This prevents KMS from initializing, which breaks the vc4-kms-v3d
+#      and vc4-kms-DPI-35inch overlays entirely.
+#
+#   3. display_auto_detect=1 MUST be commented out.
+#      DSI auto-detection conflicts with manual DPI configuration.
+#
+#   4. dtoverlay=vc4-kms-v3d must appear ONCE only, under [all].
+#      Duplicate entries (e.g. one in the default section and one under
+#      [all]) cause the driver to fail silently.
+#
+#   5. DTBO files must be present in /boot/overlays/ before booting.
+#      Source files are in:
+#      firmware/boards/raspberry-pi-zero-2w/3.5DPI-dtbo/
+#      The bootstrap script copies them automatically if the repo is
+#      cloned to /home/pi/ before running.
+#
+# I2C devices (after DPI overlay loads):
+#   Hardware I2C bus 1 (GPIO2/GPIO3) — UNAVAILABLE (claimed by DPI)
+#   Bit-banged I2C bus on GPIO10/GPIO11 — available via /dev/i2c-N
+#     PiSugar 3 Plus: 0x57 (battery), 0x68 (RTC)
+#     CardKB:         0x5F
+#     GT911 touch:    0x5D (handled by overlay, no separate wiring needed)
+#
+# For more options and information see
+# http://rptl.io/configtxt
+
+# Hardware I2C — MUST stay commented out.
+# Enabling this claims GPIO2/GPIO3 and prevents the DPI display from loading.
+# Use bit-banged I2C on GPIO10/GPIO11 instead (see WIRING.md).
+#dtparam=i2c_arm=on
+
+#dtparam=i2s=on
+#dtparam=spi=on
+
+# Enable audio
+dtparam=audio=on
+
+# Additional overlays and parameters are documented
+# /boot/firmware/overlays/README
+
+# Camera auto-detection (safe to leave enabled, not used in this build)
+camera_auto_detect=1
+
+# DSI display auto-detection — MUST stay commented out.
+# Conflicts with manual DPI configuration below.
+#display_auto_detect=1
+
+# Automatically load initramfs files, if found
+auto_initramfs=1
+
+# DRM VC4 V3D driver — loaded under [all] below, not here.
+# Do not uncomment this line — duplicate entries cause display failure.
+#dtoverlay=vc4-kms-v3d
+
+# Max framebuffers (2 required for DPI display)
+max_framebuffers=2
+
+# KMS firmware setup — MUST stay commented out.
+# This prevents KMS from initializing, breaking the DPI display driver.
+#disable_fw_kms_setup=1
+
+# Run in 64-bit mode
+arm_64bit=1
+
+# Disable compensation for displays with overscan
+disable_overscan=1
+
+# Run as fast as firmware / board allows
+arm_boost=1
+
+[cm4]
+# Enable host mode on the 2711 built-in XHCI USB controller.
+# Remove if USB device mode or no USB support is required.
+otg_mode=1
+
+[cm5]
+dtoverlay=dwc2,dr_mode=host
+
+[all]
+# UART (required for serial console access)
+enable_uart=1
+
+# ── Waveshare 3.5inch DPI LCD (640x480, IPS, 60Hz) ──────────────────────────
+# Hardware: https://www.waveshare.com/3.5inch-DPI-LCD.htm
+# DTBO source: firmware/boards/raspberry-pi-zero-2w/3.5DPI-dtbo/
+# All three overlays are required. Order matters — vc4-kms-v3d first.
+
+# KMS video driver (required for DPI on Pi OS Bullseye+)
+dtoverlay=vc4-kms-v3d
+
+# Waveshare DPI timing overlay (640x480 @ 60Hz)
+dtoverlay=vc4-kms-DPI-35inch
+
+# Waveshare board-specific overlay (Pi Zero 2W uses 3b-4b variant)
+dtoverlay=waveshare-35dpi-3b-4b
+
+# Force LCD as default display output
+display_default_lcd=1
+
+# Disable firmware rainbow splash screen
+disable_splash=1
