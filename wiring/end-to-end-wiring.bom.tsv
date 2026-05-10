@@ -1,0 +1,66 @@
+Id	Description	Qty	Unit	Designators
+1	Cable, 1 x 26 AWG	0.15	m	W_VCC_KB
+2	Cable, 10 x 26 AWG	0.15	m	W_RADIO
+3	Cable, 3 x 26 AWG	0.2	m	W_I2C_KB, W_I2C_PS
+4	Cable, 4 x 28 AWG	0.43	m	W_ADAPTER, W_HUB_UP, W_USB_ESP, W_USB_LTE, W_USB_SAMD
+5	Cable, 9 x 26 AWG	0.15	m	W_ENCODER
+6	Connector, Adafruit ANO encoder breakout, female, 9 pins	1		ANO
+7	Connector, CH334F hub port 1 pad, male, 4 pins	1		CH334F_P1
+8	Connector, CH334F hub port 2 pad, male, 4 pins	1		CH334F_P2
+9	Connector, CH334F hub port 3 pad, male, 4 pins	1		CH334F_P3
+10	Connector, CH334F hub upstream, male, 4 pins	1		CH334F_UP
+11	Connector, ChenYang adapter (female end), female, 4 pins	1		CHENYANG_F
+12	Connector, GPIO expansion header 1, female, 40 pins	1		EXPANDER_H1
+13	Connector, GPIO expansion header 2, female, 5 pins	1		EXPANDER_H2
+14	Connector, M5Stack CardKB I2C header, male, 4 pins	1		CARDKB
+15	Connector, Pi Zero 2W micro-USB OTG port, female, 4 pins	1		RPI_OTG
+16	Connector, PiSugar 3 Plus extension header, male, 6 pins	1		PISUGAR
+17	Connector, Raspberry Pi Zero 2W, male, 40 pins	1		RPI_GPIO
+18	Connector, USB LTE dongle (SIM7600), female, 4 pins	1		LTE
+19	Connector, Waveshare 3.5in DPI LCD (640x480), male, 40 pins	1		WAVESHARE
+20	Connector, Wio-LR1121 left header (U4), female, 6 pins	1		WIO_L
+21	Connector, Wio-LR1121 right header (U3), female, 6 pins	1		WIO_R
+22	Connector, XIAO ESP32-S3 GPIO, male, 13 pins	1		ESP32S3_GPIO
+23	Connector, XIAO ESP32-S3 USB-C port, female, 4 pins	1		ESP32S3_USB
+24	Connector, XIAO SAMD21 GPIO, male, 9 pins	1		SAMD21_GPIO
+25	Connector, XIAO SAMD21 USB-C port, female, 4 pins	1		SAMD21_USB
+26	Wire, 28 AWG, BK	0.4	m	W_DISPLAY, W_PI_EXP
+27	Wire, 28 AWG, BN	0.4	m	W_DISPLAY, W_PI_EXP
+28	Wire, 28 AWG, BNBK	0.4	m	W_DISPLAY, W_PI_EXP
+29	Wire, 28 AWG, BNBU	0.4	m	W_DISPLAY, W_PI_EXP
+30	Wire, 28 AWG, BNGN	0.4	m	W_DISPLAY, W_PI_EXP
+31	Wire, 28 AWG, BNRD	0.4	m	W_DISPLAY, W_PI_EXP
+32	Wire, 28 AWG, BU	0.4	m	W_DISPLAY, W_PI_EXP
+33	Wire, 28 AWG, GN	0.4	m	W_DISPLAY, W_PI_EXP
+34	Wire, 28 AWG, GNBK	0.4	m	W_DISPLAY, W_PI_EXP
+35	Wire, 28 AWG, GNBU	0.4	m	W_DISPLAY, W_PI_EXP
+36	Wire, 28 AWG, GNRD	0.4	m	W_DISPLAY, W_PI_EXP
+37	Wire, 28 AWG, GY	0.4	m	W_DISPLAY, W_PI_EXP
+38	Wire, 28 AWG, GYBN	0.4	m	W_DISPLAY, W_PI_EXP
+39	Wire, 28 AWG, GYBU	0.4	m	W_DISPLAY, W_PI_EXP
+40	Wire, 28 AWG, GYGN	0.4	m	W_DISPLAY, W_PI_EXP
+41	Wire, 28 AWG, GYPK	0.4	m	W_DISPLAY, W_PI_EXP
+42	Wire, 28 AWG, GYRD	0.4	m	W_DISPLAY, W_PI_EXP
+43	Wire, 28 AWG, PK	0.4	m	W_DISPLAY, W_PI_EXP
+44	Wire, 28 AWG, PKBN	0.4	m	W_DISPLAY, W_PI_EXP
+45	Wire, 28 AWG, PKBU	0.4	m	W_DISPLAY, W_PI_EXP
+46	Wire, 28 AWG, PKGN	0.4	m	W_DISPLAY, W_PI_EXP
+47	Wire, 28 AWG, PKRD	0.4	m	W_DISPLAY, W_PI_EXP
+48	Wire, 28 AWG, RD	0.4	m	W_DISPLAY, W_PI_EXP
+49	Wire, 28 AWG, RDBU	0.4	m	W_DISPLAY, W_PI_EXP
+50	Wire, 28 AWG, VT	0.4	m	W_DISPLAY, W_PI_EXP
+51	Wire, 28 AWG, WH	0.4	m	W_DISPLAY, W_PI_EXP
+52	Wire, 28 AWG, WHBK	0.4	m	W_DISPLAY, W_PI_EXP
+53	Wire, 28 AWG, WHBU	0.4	m	W_DISPLAY, W_PI_EXP
+54	Wire, 28 AWG, WHGN	0.4	m	W_DISPLAY, W_PI_EXP
+55	Wire, 28 AWG, WHGY	0.4	m	W_DISPLAY, W_PI_EXP
+56	Wire, 28 AWG, WHPK	0.4	m	W_DISPLAY, W_PI_EXP
+57	Wire, 28 AWG, WHRD	0.4	m	W_DISPLAY, W_PI_EXP
+58	Wire, 28 AWG, WHYE	0.4	m	W_DISPLAY, W_PI_EXP
+59	Wire, 28 AWG, YE	0.4	m	W_DISPLAY, W_PI_EXP
+60	Wire, 28 AWG, YEBK	0.4	m	W_DISPLAY, W_PI_EXP
+61	Wire, 28 AWG, YEBN	0.4	m	W_DISPLAY, W_PI_EXP
+62	Wire, 28 AWG, YEBU	0.4	m	W_DISPLAY, W_PI_EXP
+63	Wire, 28 AWG, YEGY	0.4	m	W_DISPLAY, W_PI_EXP
+64	Wire, 28 AWG, YEPK	0.4	m	W_DISPLAY, W_PI_EXP
+65	Wire, 28 AWG, YERD	0.4	m	W_DISPLAY, W_PI_EXP

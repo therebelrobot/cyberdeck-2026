@@ -1,0 +1,84 @@
+# WireViz harness: Wio-LR1121 Breakout → XIAO ESP32-S3
+# Run: wireviz wio-lr1121-xiao-esp32s3-harness.yml
+# v1.1 - simplified single-cable layout
+
+metadata:
+  title: RAPTOR Radio Wiring Harness
+  description: Wio-LR1121 breakout board to Seeed XIAO ESP32-S3
+  revision: "1.1"
+  author: therebelrobot
+
+connectors:
+  BREAKOUT_L:
+    type: 1x6 Pin Header
+    subtype: male
+    notes: Left header (U4)
+    pinlabels: [nRST, NSS, MOSI, DIO9, GND, VDD_RF]
+    pincolors: [VT, OG, BU, GY, BK, RD]
+
+  BREAKOUT_R:
+    type: 1x6 Pin Header
+    subtype: male
+    notes: Right header (U3)
+    pinlabels: [VDD_RF (int), GND (int), SCK, MISO, BUSY, DIO8]
+    pincolors: [BKWH, BKWH, YE, GN, WH, BN]
+
+  XIAO:
+    type: Seeed XIAO ESP32-S3
+    subtype: female
+    pins: [D0, D1, D2, D3, D4, D5, D6, D7, D8, D9, D10, 3V3, GND]
+    pinlabels: [GPIO1, GPIO2, GPIO3, GPIO4, GPIO5, GPIO6, GPIO43, GPIO44, GPIO7, GPIO8, GPIO9, 3V3 out, GND]
+
+cables:
+  W1:
+    wirecount: 10
+    gauge: 26 AWG
+    length: 0.15
+    colors: [YE, GN, BU, OG, VT, GY, WH, BN, RD, BK]
+    notes: Keep SPI wires (yellow, green, blue, orange) short and equal length
+
+connections:
+  # SPI bus
+  -
+    - BREAKOUT_R: [3]
+    - W1: [1]
+    - XIAO: [D8]
+  -
+    - BREAKOUT_R: [4]
+    - W1: [2]
+    - XIAO: [D9]
+  -
+    - BREAKOUT_L: [3]
+    - W1: [3]
+    - XIAO: [D10]
+  -
+    - BREAKOUT_L: [2]
+    - W1: [4]
+    - XIAO: [D7]
+  # Control
+  -
+    - BREAKOUT_L: [1]
+    - W1: [5]
+    - XIAO: [D2]
+  -
+    - BREAKOUT_L: [4]
+    - W1: [6]
+    - XIAO: [D1]
+  -
+    - BREAKOUT_R: [5]
+    - W1: [7]
+    - XIAO: [D3]
+  # Optional
+  -
+    - BREAKOUT_R: [6]
+    - W1: [8]
+    - XIAO: [D0]
+  # Power
+  -
+    - BREAKOUT_L: [6]
+    - W1: [9]
+    - XIAO: [3V3]
+  -
+    - BREAKOUT_L: [5]
+    - W1: [10]
+    - XIAO: [GND]

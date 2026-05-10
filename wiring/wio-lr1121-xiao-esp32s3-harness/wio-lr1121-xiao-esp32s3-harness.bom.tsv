@@ -1,0 +1,4 @@
+Id	Description	Qty	Unit	Designators
+1	Cable, 10 x 26 AWG	0.15	m	W1
+2	Connector, 1x6 Pin Header, male, 6 pins	2		BREAKOUT_L, BREAKOUT_R
+3	Connector, Seeed XIAO ESP32-S3, female, 13 pins	1		XIAO

@@ -1,0 +1,847 @@
+# WireViz harness: RAPTOR OS — full end-to-end wiring
+# Covers every physical wire connection in the cyberdeck-2026 build.
+#
+# Run: wireviz raptor-full-harness.yml
+# Output: raptor-full-harness.[html|png|svg|tsv]
+#
+# Systems covered:
+#   1. Pi Zero 2W → GPIO expansion board (ribbon cable)
+#   2. Expansion header 1 → Waveshare 3.5" DPI LCD (ribbon cable)
+#   3. Expansion header 2 → PiSugar 3 Plus extension header (I2C + GND)
+#   4. PiSugar extension header → CardKB (I2C daisy-chain + VCC from header 2)
+#   5. Pi Zero 2W OTG → ChenYang adapter → CH334F USB hub upstream
+#   6. CH334F port 1 → XIAO SAMD21 (ANO encoder HID bridge)
+#   7. XIAO SAMD21 → ANO encoder breakout (GPIO)
+#   8. CH334F port 2 → XIAO ESP32-S3 (Meshtastic)
+#   9. XIAO ESP32-S3 → Wio-LR1121 breakout (SPI + control + power)
+#  10. CH334F port 3 → USB LTE dongle
+#
+# Power chain:
+#   PiSugar 3 Plus (5000mAh, pogo pins)
+#     → Pi Zero 2W
+#       → USB OTG → ChenYang adapter → CH334F hub
+#         → all USB peripherals (XIAO SAMD21, XIAO ESP32-S3, LTE dongle)
+#       → GPIO expansion board header 2 pin 17 (3.3V) → CardKB VCC
+#
+# I2C bus (bit-banged on GPIO10/GPIO11, created by DPI overlay):
+#   Expansion header 2 pin 19 (SDA) / pin 23 (SCL)
+#     → PiSugar SDAT/SSCL (addr 0x57, 0x68)
+#       → CardKB SDA/SCL (addr 0x5F, daisy-chained from PiSugar)
+#   Waveshare GT911 touch (addr 0x5D) — handled by DPI overlay via ribbon
+
+metadata:
+  title: RAPTOR OS Full Wiring Harness
+  description: >
+    Complete end-to-end wiring for cyberdeck-2026.
+    Dinosaur toy enclosure, Jurassic Park themed.
+  revision: "1.0"
+  author: therebelrobot
+  date: "2026-05"
+
+options:
+  fontname: DejaVu Sans
+  bgcolor: "#ffffff"
+  bgcolor_node: "#f8f8f8"
+  bgcolor_connector: "#e8e8e8"
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CONNECTORS
+# ═════════════════════════════════════════════════════════════════════════════
+
+connectors:
+
+  # ─────────────────────────────────────────
+  # Raspberry Pi Zero 2W — 40-pin GPIO header
+  # ─────────────────────────────────────────
+  RPI_GPIO:
+    type: Raspberry Pi Zero 2W
+    subtype: male
+    pincount: 40
+    pinlabels:
+      - 3.3V             # 1
+      - 5V               # 2
+      - GPIO2 (DPI R0)   # 3
+      - 5V               # 4
+      - GPIO3 (DPI R1)   # 5
+      - GND              # 6
+      - GPIO4 (DPI B2)   # 7
+      - GPIO14 (DPI G4)  # 8
+      - GND              # 9
+      - GPIO15 (DPI G5)  # 10
+      - GPIO17 (DPI G7)  # 11
+      - GPIO18 (PWM/BL)  # 12
+      - GPIO27 (TP_INT)  # 13
+      - GND              # 14
+      - GPIO22 (DPI R4)  # 15
+      - GPIO23 (DPI R5)  # 16
+      - 3.3V             # 17
+      - GPIO24 (DPI R6)  # 18
+      - GPIO10 (SDA)     # 19
+      - GND              # 20
+      - GPIO9 (DPI B7)   # 21
+      - GPIO25 (DPI R7)  # 22
+      - GPIO11 (SCL)     # 23
+      - GPIO8 (DPI B6)   # 24
+      - GND              # 25
+      - GPIO7 (DPI B5)   # 26
+      - GPIO0 (LCD_CLK)  # 27
+      - GPIO1 (DE)       # 28
+      - GPIO5 (DPI B3)   # 29
+      - GND              # 30
+      - GPIO6 (DPI B4)   # 31
+      - GPIO12 (DPI G2)  # 32
+      - GPIO13 (DPI G3)  # 33
+      - GND              # 34
+      - GPIO19 (NC)      # 35
+      - GPIO16 (DPI G6)  # 36
+      - GPIO26 (NC)      # 37
+      - GPIO20 (DPI R2)  # 38
+      - GND              # 39
+      - GPIO21 (DPI R3)  # 40
+    notes: >
+      Full 40-pin header connects to GPIO expansion board via ribbon cable.
+      Pins 1, 17, 19, 20, 23, 35, 37 are NC on the Waveshare display side.
+
+  # ─────────────────────────────────────────
+  # Raspberry Pi Zero 2W — micro-USB OTG port
+  # ─────────────────────────────────────────
+  RPI_OTG:
+    type: Pi Zero 2W micro-USB OTG port
+    subtype: female
+    pincount: 4
+    pinlabels: [VBUS, D-, D+, GND]
+    notes: >
+      Single USB port on the Pi Zero 2W.
+      ChenYang right-angle adapter plugs in here.
+
+  # ─────────────────────────────────────────
+  # ChenYang right-angle micro-USB adapter
+  # Male end into Pi OTG, female end receives hub cable
+  # ─────────────────────────────────────────
+  CHENYANG_M:
+    type: ChenYang adapter (male end)
+    subtype: male
+    pincount: 4
+    pinlabels: [VBUS, D-, D+, GND]
+    notes: Plugs into Pi Zero 2W OTG port.
+
+  CHENYANG_F:
+    type: ChenYang adapter (female end)
+    subtype: female
+    pincount: 4
+    pinlabels: [VBUS, D-, D+, GND]
+    notes: Receives CH334F hub upstream cable.
+
+  # ─────────────────────────────────────────
+  # GPIO 1→2 Expansion Board — Header 1
+  # Full 40-pin passthrough to Waveshare display
+  # ─────────────────────────────────────────
+  EXPANDER_H1:
+    type: GPIO expansion header 1
+    subtype: female
+    pincount: 40
+    pinlabels:
+      - 3.3V (NC)        # 1
+      - 5V               # 2
+      - VSYNC            # 3
+      - 5V               # 4
+      - HSYNC            # 5
+      - GND              # 6
+      - B2               # 7
+      - G4               # 8
+      - GND              # 9
+      - G5               # 10
+      - G7               # 11
+      - PWM/BL           # 12
+      - TP_INT           # 13
+      - GND              # 14
+      - R4               # 15
+      - R5               # 16
+      - 3.3V (NC)        # 17
+      - R6               # 18
+      - TP_SDA           # 19
+      - GND              # 20
+      - B7               # 21
+      - R7               # 22
+      - TP_SCL           # 23
+      - B6               # 24
+      - GND              # 25
+      - B5               # 26
+      - LCD_CLK          # 27
+      - DE               # 28
+      - B3               # 29
+      - GND              # 30
+      - B4               # 31
+      - G2               # 32
+      - G3               # 33
+      - GND              # 34
+      - NC               # 35
+      - G6               # 36
+      - NC               # 37
+      - R2               # 38
+      - GND              # 39
+      - R3               # 40
+    notes: >
+      All 40 pins mirrored from Pi GPIO header.
+      Ribbon cable connects to Waveshare DPI display.
+
+  # ─────────────────────────────────────────
+  # GPIO 1→2 Expansion Board — Header 2
+  # Only NC/free pins broken out for I2C bus
+  # ─────────────────────────────────────────
+  EXPANDER_H2:
+    type: GPIO expansion header 2
+    subtype: female
+    pincount: 5
+    pinlabels:
+      - 3.3V (alt VCC)   # 1 = physical pin 1
+      - 3.3V (VCC)       # 2 = physical pin 17
+      - GPIO10 (SDA)     # 3 = physical pin 19
+      - GND              # 4 = physical pin 20
+      - GPIO11 (SCL)     # 5 = physical pin 23
+    notes: >
+      Only free pins from Waveshare pinout are used.
+      Pin 2 (physical 17) preferred for CardKB VCC.
+      Pins 3/5 carry bit-banged I2C bus.
+
+  # ─────────────────────────────────────────
+  # Waveshare 3.5" DPI LCD
+  # ─────────────────────────────────────────
+  WAVESHARE:
+    type: Waveshare 3.5in DPI LCD (640x480)
+    subtype: male
+    pincount: 40
+    pinlabels:
+      - NC               # 1
+      - 5V               # 2
+      - VSYNC            # 3
+      - 5V               # 4
+      - HSYNC            # 5
+      - GND              # 6
+      - B2               # 7
+      - G4               # 8
+      - GND              # 9
+      - G5               # 10
+      - G7               # 11
+      - PWM/BL           # 12
+      - TP_INT           # 13
+      - GND              # 14
+      - R4               # 15
+      - R5               # 16
+      - NC               # 17
+      - R6               # 18
+      - TP_SDA           # 19
+      - GND              # 20
+      - B7               # 21
+      - R7               # 22
+      - TP_SCL           # 23
+      - B6               # 24
+      - GND              # 25
+      - B5               # 26
+      - LCD_CLK          # 27
+      - DE               # 28
+      - B3               # 29
+      - GND              # 30
+      - B4               # 31
+      - G2               # 32
+      - G3               # 33
+      - GND              # 34
+      - NC               # 35
+      - G6               # 36
+      - NC               # 37
+      - R2               # 38
+      - GND              # 39
+      - R3               # 40
+    notes: >
+      DPI666 interface, 60Hz. GT911 touch at I2C 0x5D or 0x14.
+      Touch handled by DPI overlay — no separate wiring needed.
+      Pins 1, 17, 35, 37 are NC.
+
+  # ─────────────────────────────────────────
+  # PiSugar 3 Plus — Extension Header
+  # 2.54mm pitch, dupont female jumpers
+  # ─────────────────────────────────────────
+  PISUGAR:
+    type: PiSugar 3 Plus extension header
+    subtype: male
+    pincount: 6
+    pinlabels:
+      - GND              # 1
+      - 5VOUT            # 2
+      - MDAT (unused)    # 3
+      - MSCL (unused)    # 4
+      - SDAT             # 5
+      - SSCL             # 6
+    notes: >
+      Use SDAT/SSCL (slave) not MDAT/MSCL (main).
+      I2C addr 0x57 (battery), 0x68 (RTC).
+      Power to Pi via pogo pins — not this header.
+
+  # ─────────────────────────────────────────
+  # M5Stack CardKB — I2C header
+  # Daisy-chained from PiSugar SDAT/SSCL
+  # ─────────────────────────────────────────
+  CARDKB:
+    type: M5Stack CardKB I2C header
+    subtype: male
+    pincount: 4
+    pinlabels:
+      - VCC              # 1
+      - GND              # 2
+      - SDA              # 3
+      - SCL              # 4
+    notes: >
+      I2C addr 0x5F. Runs on 3.3V.
+      SDA/SCL/GND daisy-chained from PiSugar extension header.
+      VCC from expansion header 2 pin 17 (3.3V) directly.
+
+  # ─────────────────────────────────────────
+  # Adafruit CH334F USB Hub — upstream
+  # ─────────────────────────────────────────
+  CH334F_UP:
+    type: CH334F hub upstream
+    subtype: male
+    pincount: 4
+    pinlabels: [VBUS, D-, D+, GND]
+    notes: >
+      Upstream input from Pi OTG via ChenYang adapter.
+      31.6 x 20.4mm PCB, 4 mounting holes.
+
+  # ─────────────────────────────────────────
+  # CH334F — Port 1 (XIAO SAMD21)
+  # ─────────────────────────────────────────
+  CH334F_P1:
+    type: CH334F hub port 1 pad
+    subtype: male
+    pincount: 4
+    pinlabels: [VBUS, D-, D+, GND]
+    notes: XIAO SAMD21 — ANO encoder HID bridge
+
+  # ─────────────────────────────────────────
+  # CH334F — Port 2 (XIAO ESP32-S3)
+  # ─────────────────────────────────────────
+  CH334F_P2:
+    type: CH334F hub port 2 pad
+    subtype: male
+    pincount: 4
+    pinlabels: [VBUS, D-, D+, GND]
+    notes: XIAO ESP32-S3 — Meshtastic LoRa node
+
+  # ─────────────────────────────────────────
+  # CH334F — Port 3 (LTE dongle)
+  # ─────────────────────────────────────────
+  CH334F_P3:
+    type: CH334F hub port 3 pad
+    subtype: male
+    pincount: 4
+    pinlabels: [VBUS, D-, D+, GND]
+    notes: USB LTE dongle (SIM7600 series)
+
+  # ─────────────────────────────────────────
+  # CH334F — Port 4 (spare)
+  # ─────────────────────────────────────────
+  CH334F_P4:
+    type: CH334F hub port 4 pad
+    subtype: male
+    pincount: 4
+    pinlabels: [VBUS, D-, D+, GND]
+    notes: Spare — future use
+
+  # ─────────────────────────────────────────
+  # XIAO SAMD21 — USB port
+  # ─────────────────────────────────────────
+  SAMD21_USB:
+    type: XIAO SAMD21 USB-C port
+    subtype: female
+    pincount: 4
+    pinlabels: [VBUS, D-, D+, GND]
+    notes: >
+      Receives power + USB HID data from CH334F hub port 1.
+      Pi sees this as a USB keyboard/mouse.
+
+  # ─────────────────────────────────────────
+  # XIAO SAMD21 — GPIO header
+  # Connected to ANO encoder breakout
+  # ─────────────────────────────────────────
+  SAMD21_GPIO:
+    type: XIAO SAMD21 GPIO
+    subtype: male
+    pincount: 9
+    pinlabels:
+      - D0 (ENC_A)       # 1
+      - D1 (ENC_B)       # 2
+      - D2 (BTN_CENTER)  # 3
+      - D3 (BTN_UP)      # 4
+      - D4 (BTN_DOWN)    # 5
+      - D5 (BTN_LEFT)    # 6
+      - D6 (BTN_RIGHT)   # 7
+      - 3V3 out          # 8
+      - GND              # 9
+    notes: >
+      Runs TinyGo USB HID firmware.
+      Pin assignments preliminary — update after physical build.
+
+  # ─────────────────────────────────────────
+  # Adafruit ANO Encoder Breakout
+  # ─────────────────────────────────────────
+  ANO:
+    type: Adafruit ANO encoder breakout
+    subtype: female
+    pincount: 9
+    pinlabels:
+      - ENC_A             # 1
+      - ENC_B             # 2
+      - BTN_CENTER        # 3
+      - BTN_UP            # 4
+      - BTN_DOWN          # 5
+      - BTN_LEFT          # 6
+      - BTN_RIGHT         # 7
+      - VCC               # 8
+      - GND (COM)         # 9
+    notes: >
+      iPod-style scroll wheel + 5-way directional.
+      COM pins tied to GND via XIAO GPIO (set LOW in firmware).
+
+  # ─────────────────────────────────────────
+  # XIAO ESP32-S3 — USB port
+  # ─────────────────────────────────────────
+  ESP32S3_USB:
+    type: XIAO ESP32-S3 USB-C port
+    subtype: female
+    pincount: 4
+    pinlabels: [VBUS, D-, D+, GND]
+    notes: >
+      Receives power + USB serial from CH334F hub port 2.
+      Pi sees as /dev/ttyACM* or /dev/ttyUSB*.
+
+  # ─────────────────────────────────────────
+  # XIAO ESP32-S3 — GPIO header
+  # SPI + control + power to Wio-LR1121
+  # ─────────────────────────────────────────
+  ESP32S3_GPIO:
+    type: XIAO ESP32-S3 GPIO
+    subtype: male
+    pincount: 13
+    pinlabels:
+      - D0 / GPIO1 (DIO8)    # 1
+      - D1 / GPIO2 (DIO9)    # 2
+      - D2 / GPIO3 (nRST)    # 3
+      - D3 / GPIO4 (BUSY)    # 4
+      - D4 / GPIO5 (unused)  # 5
+      - D5 / GPIO6 (unused)  # 6
+      - D6 / GPIO43 (unused) # 7
+      - D7 / GPIO44 (NSS)    # 8
+      - D8 / GPIO7 (SCK)     # 9
+      - D9 / GPIO8 (MISO)    # 10
+      - D10 / GPIO9 (MOSI)   # 11
+      - 3V3 out              # 12
+      - GND                  # 13
+    notes: >
+      Runs Meshtastic firmware.
+      3V3 out supplies Wio-LR1121 VDD_RF.
+
+  # ─────────────────────────────────────────
+  # Wio-LR1121 Breakout — Left header (U4)
+  # ─────────────────────────────────────────
+  WIO_L:
+    type: Wio-LR1121 left header (U4)
+    subtype: female
+    pincount: 6
+    pinlabels:
+      - nRST             # 1
+      - NSS              # 2
+      - MOSI             # 3
+      - DIO9             # 4
+      - GND              # 5
+      - VDD_RF           # 6
+    pincolors: [VT, OG, BU, GY, BK, RD]
+    notes: >
+      nRST: reset (active low). NSS: SPI chip select.
+      MOSI: SPI data in. DIO9: IRQ line.
+
+  # ─────────────────────────────────────────
+  # Wio-LR1121 Breakout — Right header (U3)
+  # ─────────────────────────────────────────
+  WIO_R:
+    type: Wio-LR1121 right header (U3)
+    subtype: female
+    pincount: 6
+    pinlabels:
+      - VDD_RF (int)     # 1 — internal, do NOT wire
+      - GND (int)        # 2 — internal, do NOT wire
+      - SCK              # 3
+      - MISO             # 4
+      - BUSY             # 5
+      - DIO8             # 6
+    pincolors: [BKWH, BKWH, YE, GN, WH, BN]
+    notes: >
+      Pins 1-2 are internal board traces — do NOT wire.
+      SCK/MISO: SPI. BUSY: wait signal. DIO8: optional IRQ.
+
+  # ─────────────────────────────────────────
+  # USB LTE Dongle
+  # ─────────────────────────────────────────
+  LTE:
+    type: USB LTE dongle (SIM7600)
+    subtype: female
+    pincount: 4
+    pinlabels: [VBUS, D-, D+, GND]
+    notes: >
+      Pi sees as network interface.
+      Draws 200-500mA on transmit.
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CABLES
+# ═════════════════════════════════════════════════════════════════════════════
+
+cables:
+
+  # ─── System 1: Pi → expansion board ────────────────────────────────────────
+  W_PI_EXP:
+    category: bundle
+    wirecount: 40
+    gauge: 28 AWG
+    length: 0.20
+    color_code: DIN
+    notes: >
+      40-pin GPIO ribbon cable, 8 inch. Female both ends.
+      Pi GPIO header → expansion board input.
+
+  # ─── System 2: Expansion header 1 → Waveshare display ─────────────────────
+  W_DISPLAY:
+    category: bundle
+    wirecount: 40
+    gauge: 28 AWG
+    length: 0.20
+    color_code: DIN
+    notes: >
+      40-pin GPIO ribbon cable, 8 inch. Female both ends.
+      Expansion header 1 → Waveshare DPI LCD.
+
+  # ─── System 3: Expansion header 2 → PiSugar (I2C) ─────────────────────────
+  W_I2C_PS:
+    wirecount: 3
+    gauge: 26 AWG
+    length: 0.10
+    colors: [BU, VT, BK]
+    wirelabels: [SDA, SCL, GND]
+    notes: >
+      Female-to-female dupont jumpers, 10cm.
+      Header 2 → PiSugar extension header.
+
+  # ─── System 4a: Header 2 → CardKB VCC (direct, not via PiSugar) ───────────
+  W_VCC_KB:
+    wirecount: 1
+    gauge: 26 AWG
+    length: 0.15
+    colors: [GN]
+    wirelabels: [3.3V]
+    notes: >
+      Female-to-male dupont jumper.
+      Header 2 pin 17 (3.3V) direct to CardKB VCC.
+      Does NOT route through PiSugar.
+
+  # ─── System 4b: PiSugar → CardKB (I2C daisy-chain) ────────────────────────
+  W_I2C_KB:
+    wirecount: 3
+    gauge: 26 AWG
+    length: 0.10
+    colors: [BU, VT, BK]
+    wirelabels: [SDA, SCL, GND]
+    notes: >
+      Female-to-male dupont jumpers, 10cm.
+      PiSugar SDAT/SSCL/GND → CardKB SDA/SCL/GND.
+      Daisy-chain continuation of I2C bus.
+
+  # ─── System 5: ChenYang adapter (internal passthrough) ─────────────────────
+  W_ADAPTER:
+    wirecount: 4
+    gauge: 28 AWG
+    length: 0.03
+    colors: [RD, WH, GN, BK]
+    wirelabels: [VBUS, D-, D+, GND]
+    notes: >
+      Internal to ChenYang adapter body.
+      Right-angle micro-USB male → female.
+
+  # ─── System 5b: ChenYang female → CH334F hub upstream ─────────────────────
+  W_HUB_UP:
+    wirecount: 4
+    gauge: 28 AWG
+    length: 0.10
+    colors: [RD, WH, GN, BK]
+    wirelabels: [VBUS, D-, D+, GND]
+    notes: >
+      Short cable from ChenYang adapter female end
+      to CH334F hub upstream input.
+
+  # ─── System 6: CH334F port 1 → XIAO SAMD21 ────────────────────────────────
+  W_USB_SAMD:
+    wirecount: 4
+    gauge: 28 AWG
+    length: 0.10
+    colors: [RD, WH, GN, BK]
+    wirelabels: [VBUS, D-, D+, GND]
+    notes: >
+      Adafruit simple USB breakout cable.
+      CH334F port 1 pad → XIAO SAMD21 USB-C.
+
+  # ─── System 7: XIAO SAMD21 → ANO encoder breakout ─────────────────────────
+  W_ENCODER:
+    wirecount: 9
+    gauge: 26 AWG
+    length: 0.15
+    colors: [YE, OG, GN, BU, VT, GY, WH, RD, BK]
+    wirelabels: [ENC_A, ENC_B, BTN_C, BTN_U, BTN_D, BTN_L, BTN_R, VCC, GND]
+    notes: >
+      Dupont jumper wires from XIAO SAMD21 GPIO to ANO breakout.
+      Pin assignments set in TinyGo firmware constants.
+
+  # ─── System 8: CH334F port 2 → XIAO ESP32-S3 ──────────────────────────────
+  W_USB_ESP:
+    wirecount: 4
+    gauge: 28 AWG
+    length: 0.10
+    colors: [RD, WH, GN, BK]
+    wirelabels: [VBUS, D-, D+, GND]
+    notes: >
+      Adafruit simple USB breakout cable.
+      CH334F port 2 pad → XIAO ESP32-S3 USB-C.
+
+  # ─── System 9: XIAO ESP32-S3 → Wio-LR1121 (SPI + ctrl + pwr) ─────────────
+  W_RADIO:
+    wirecount: 10
+    gauge: 26 AWG
+    length: 0.15
+    colors: [YE, GN, BU, OG, VT, GY, WH, BN, RD, BK]
+    wirelabels: [SCK, MISO, MOSI, NSS, nRST, DIO9, BUSY, DIO8, VDD_RF, GND]
+    notes: >
+      Keep SPI wires (YE/GN/BU/OG) short and equal length.
+      15cm max. DIO8 (brown) optional.
+
+  # ─── System 10: CH334F port 3 → LTE dongle ────────────────────────────────
+  W_USB_LTE:
+    wirecount: 4
+    gauge: 28 AWG
+    length: 0.10
+    colors: [RD, WH, GN, BK]
+    wirelabels: [VBUS, D-, D+, GND]
+    notes: >
+      Adafruit simple USB breakout cable.
+      CH334F port 3 pad → LTE dongle USB-A.
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CONNECTIONS
+# ═════════════════════════════════════════════════════════════════════════════
+
+connections:
+
+  # ═══ SYSTEM 1: Pi GPIO → Expansion Board ═══════════════════════════════════
+  -
+    - RPI_GPIO: [1-40]
+    - W_PI_EXP: [1-40]
+    - EXPANDER_H1: [1-40]
+
+  # ═══ SYSTEM 2: Expansion Header 1 → Waveshare Display ═════════════════════
+  -
+    - EXPANDER_H1: [1-40]
+    - W_DISPLAY: [1-40]
+    - WAVESHARE: [1-40]
+
+  # ═══ SYSTEM 3: Expansion Header 2 → PiSugar (I2C + GND) ══════════════════
+
+  # SDA: header 2 pin 19 (position 3) → PiSugar SDAT (position 5)
+  -
+    - EXPANDER_H2: [3]
+    - W_I2C_PS: [1]
+    - PISUGAR: [5]
+
+  # SCL: header 2 pin 23 (position 5) → PiSugar SSCL (position 6)
+  -
+    - EXPANDER_H2: [5]
+    - W_I2C_PS: [2]
+    - PISUGAR: [6]
+
+  # GND: header 2 pin 20 (position 4) → PiSugar GND (position 1)
+  -
+    - EXPANDER_H2: [4]
+    - W_I2C_PS: [3]
+    - PISUGAR: [1]
+
+  # ═══ SYSTEM 4a: Header 2 → CardKB VCC (direct) ════════════════════════════
+
+  # 3.3V: header 2 pin 17 (position 2) → CardKB VCC (position 1)
+  -
+    - EXPANDER_H2: [2]
+    - W_VCC_KB: [1]
+    - CARDKB: [1]
+
+  # ═══ SYSTEM 4b: PiSugar → CardKB (I2C daisy-chain) ════════════════════════
+
+  # SDA: PiSugar SDAT (5) → CardKB SDA (3)
+  -
+    - PISUGAR: [5]
+    - W_I2C_KB: [1]
+    - CARDKB: [3]
+
+  # SCL: PiSugar SSCL (6) → CardKB SCL (4)
+  -
+    - PISUGAR: [6]
+    - W_I2C_KB: [2]
+    - CARDKB: [4]
+
+  # GND: PiSugar GND (1) → CardKB GND (2)
+  -
+    - PISUGAR: [1]
+    - W_I2C_KB: [3]
+    - CARDKB: [2]
+
+  # ═══ SYSTEM 5: Pi OTG → ChenYang → CH334F hub ═════════════════════════════
+
+  # Pi OTG → ChenYang male end
+  -
+    - RPI_OTG: [1, 2, 3, 4]
+    - W_ADAPTER: [1, 2, 3, 4]
+    - CHENYANG_F: [1, 2, 3, 4]
+
+  # ChenYang female end → CH334F hub upstream
+  -
+    - CHENYANG_F: [1, 2, 3, 4]
+    - W_HUB_UP: [1, 2, 3, 4]
+    - CH334F_UP: [1, 2, 3, 4]
+
+  # ═══ SYSTEM 6: CH334F port 1 → XIAO SAMD21 ════════════════════════════════
+  -
+    - CH334F_P1: [1, 2, 3, 4]
+    - W_USB_SAMD: [1, 2, 3, 4]
+    - SAMD21_USB: [1, 2, 3, 4]
+
+  # ═══ SYSTEM 7: XIAO SAMD21 → ANO Encoder ══════════════════════════════════
+
+  # ENC_A
+  -
+    - SAMD21_GPIO: [1]
+    - W_ENCODER: [1]
+    - ANO: [1]
+
+  # ENC_B
+  -
+    - SAMD21_GPIO: [2]
+    - W_ENCODER: [2]
+    - ANO: [2]
+
+  # BTN_CENTER
+  -
+    - SAMD21_GPIO: [3]
+    - W_ENCODER: [3]
+    - ANO: [3]
+
+  # BTN_UP
+  -
+    - SAMD21_GPIO: [4]
+    - W_ENCODER: [4]
+    - ANO: [4]
+
+  # BTN_DOWN
+  -
+    - SAMD21_GPIO: [5]
+    - W_ENCODER: [5]
+    - ANO: [5]
+
+  # BTN_LEFT
+  -
+    - SAMD21_GPIO: [6]
+    - W_ENCODER: [6]
+    - ANO: [6]
+
+  # BTN_RIGHT
+  -
+    - SAMD21_GPIO: [7]
+    - W_ENCODER: [7]
+    - ANO: [7]
+
+  # VCC
+  -
+    - SAMD21_GPIO: [8]
+    - W_ENCODER: [8]
+    - ANO: [8]
+
+  # GND
+  -
+    - SAMD21_GPIO: [9]
+    - W_ENCODER: [9]
+    - ANO: [9]
+
+  # ═══ SYSTEM 8: CH334F port 2 → XIAO ESP32-S3 ══════════════════════════════
+  -
+    - CH334F_P2: [1, 2, 3, 4]
+    - W_USB_ESP: [1, 2, 3, 4]
+    - ESP32S3_USB: [1, 2, 3, 4]
+
+  # ═══ SYSTEM 9: XIAO ESP32-S3 → Wio-LR1121 ═════════════════════════════════
+
+  # SCK: D8 (9) → WIO_R SCK (3)
+  -
+    - ESP32S3_GPIO: [9]
+    - W_RADIO: [1]
+    - WIO_R: [3]
+
+  # MISO: D9 (10) → WIO_R MISO (4)
+  -
+    - ESP32S3_GPIO: [10]
+    - W_RADIO: [2]
+    - WIO_R: [4]
+
+  # MOSI: D10 (11) → WIO_L MOSI (3)
+  -
+    - ESP32S3_GPIO: [11]
+    - W_RADIO: [3]
+    - WIO_L: [3]
+
+  # NSS: D7 (8) → WIO_L NSS (2)
+  -
+    - ESP32S3_GPIO: [8]
+    - W_RADIO: [4]
+    - WIO_L: [2]
+
+  # nRST: D2 (3) → WIO_L nRST (1)
+  -
+    - ESP32S3_GPIO: [3]
+    - W_RADIO: [5]
+    - WIO_L: [1]
+
+  # DIO9: D1 (2) → WIO_L DIO9 (4)
+  -
+    - ESP32S3_GPIO: [2]
+    - W_RADIO: [6]
+    - WIO_L: [4]
+
+  # BUSY: D3 (4) → WIO_R BUSY (5)
+  -
+    - ESP32S3_GPIO: [4]
+    - W_RADIO: [7]
+    - WIO_R: [5]
+
+  # DIO8: D0 (1) → WIO_R DIO8 (6) — optional
+  -
+    - ESP32S3_GPIO: [1]
+    - W_RADIO: [8]
+    - WIO_R: [6]
+
+  # VDD_RF: 3V3 (12) → WIO_L VDD_RF (6)
+  -
+    - ESP32S3_GPIO: [12]
+    - W_RADIO: [9]
+    - WIO_L: [6]
+
+  # GND: GND (13) → WIO_L GND (5)
+  -
+    - ESP32S3_GPIO: [13]
+    - W_RADIO: [10]
+    - WIO_L: [5]
+
+  # ═══ SYSTEM 10: CH334F port 3 → LTE dongle ════════════════════════════════
+  -
+    - CH334F_P3: [1, 2, 3, 4]
+    - W_USB_LTE: [1, 2, 3, 4]
+    - LTE: [1, 2, 3, 4]
